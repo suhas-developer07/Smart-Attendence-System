@@ -32,6 +32,8 @@ func main() {
 
 	defer Database.Close()
 
+
+
 	e := echo.New()
 	cmd.SetupRoutes(e, Database)
 

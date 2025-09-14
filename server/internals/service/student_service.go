@@ -16,6 +16,7 @@ func NewStudentService(r domain.StudentRepo) *StudentService {
 
 func (s *StudentService) RegisterStudentService(req domain.StudentRegisterPayload) (int64, error) {
 
+	// TODO : here i need call rabbit mq service and  drop a message "new entry with usn req.usn"
 	id, err := s.repo.StudentRegister(req)
 
 	if err != nil {

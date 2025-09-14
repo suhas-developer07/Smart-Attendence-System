@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -13,14 +14,17 @@ import (
 func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	repo := repository.NewPostgresRepo(db)
 
+	if err :=repo.InitTables();err != nil{
+		log.Fatalf("Error Initializing the tables")
+	}
+
 	StudentService := service.NewStudentService(repo)
 
 	studentHandler := handler.NewStudentHandler(StudentService)
 
-	e.POST("/", func(c echo.Context) error {
+	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "server is healthy")
 	})
 
 	e.POST("/students/register", studentHandler.StudentRegisterHandler)
 }
-
