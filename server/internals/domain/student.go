@@ -14,3 +14,7 @@ type StudentRegisterPayload struct {
 	Branch   string `json:"branch"`
 	Sem      string `json:"sem"`
 }
+
+type StudentRepo interface {
+	StudentRegister(student StudentRegisterPayload) (int64, error)
+}

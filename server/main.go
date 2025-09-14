@@ -6,8 +6,8 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"github.com/labstack/echo/v4"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/cmd"
-	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/repository"
 )
 
 func main() {
@@ -32,9 +32,8 @@ func main() {
 
 	defer Database.Close()
 
-	PostgresRepo := repository.NewPostgresRepo(Database)
+	e := echo.New()
+	cmd.SetupRoutes(e, Database)
 
-	if err := PostgresRepo.InitTables(); err != nil {
-		log.Fatalf("Failed to initialize tables: %v", err)
-	}
+	e.Logger.Fatal(e.Start(":8080"))
 }

@@ -3,7 +3,6 @@ package repository
 import (
 	"database/sql"
 
-	"github.com/elastic/go-elasticsearch/v8/typedapi/sql/query"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
 )
 
@@ -53,9 +52,13 @@ func (p *PostgresRepo) InitTables() error {
 	}
 	return nil
 }
+func (p *PostgresRepo) StudentRegister(student domain.StudentRegisterPayload) (int64, error) {
+	var id int64
+	query := `INSERT INTO students (usn, username, department, sem) VALUES($1, $2, $3, $4) RETURNING student_id;`
 
-func (p *PostgresRepo) InsertStudents(domain.StudentRegisterPayload)error{
-  query := `INSERT INTO students (usn,username,department,sem) VALUES($1,$2,$3,$4)`
-
-  _,err := 
+	err := p.db.QueryRow(query, student.USN, student.Username, student.Branch, student.Sem).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
