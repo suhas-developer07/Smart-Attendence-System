@@ -36,7 +36,7 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	subjectService := subject_service.NewSubjectService(repo)
 	subjectHandler := subject_handler.NewSubjectHandler(subjectService)
 
-	e.POST("/faculty/addsubjects", subjectHandler.AddSubjectHandler)
-	e.GET("/students/listsubjects", subjectHandler.ListSubjectsHandler)
+	e.POST("/subjects/addsubjects", subjectHandler.AddSubjectHandler)
+	e.GET("/students/subjects", subjectHandler.GetSubjectsByDeptAndSemHandler)
 	//e.POST("/faculty/getstudentswithsubjects", facultyHandler.GetStudentsWithSubjectsHandler)
 }

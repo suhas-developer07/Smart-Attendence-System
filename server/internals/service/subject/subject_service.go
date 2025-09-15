@@ -6,6 +6,7 @@ import "github.com/suhas-developer07/Smart-Attendence-System/server/internals/do
 type SubjectService struct{
 	subjectRepo domain.SubjectRepo
 }
+
 func NewSubjectService(subjectRepo domain.SubjectRepo) *SubjectService {
 	return &SubjectService{
 		subjectRepo: 	subjectRepo,
@@ -23,9 +24,9 @@ func (s *SubjectService) AddSubject(req domain.SubjectPayload) (int64, error){
 	return id,nil
 }
 
-func (s *SubjectService) ListSubjects(branch string, sem int) ([]domain.Subject, error){
-	
-	subjects, err := s.subjectRepo.ListSubjects(branch, sem)
+func (s *SubjectService) GetSubjectsByDeptAndSem(department string, sem int) ([]domain.Subject, error){
+
+	subjects, err := s.subjectRepo.GetSubjectsByDeptAndSem(department, sem)
 	if err != nil {
 		return nil, err
 	}

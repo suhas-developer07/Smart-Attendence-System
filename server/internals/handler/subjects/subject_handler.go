@@ -47,14 +47,14 @@ func (h *SubjectHandler) AddSubjectHandler(c echo.Context) error {
 	})
 }
 
-func (h *SubjectHandler) ListSubjectsHandler(c echo.Context) error {
-	branch := c.QueryParam("branch")
+func (h *SubjectHandler) GetSubjectsByDeptAndSemHandler(c echo.Context) error {
+	department := c.QueryParam("department")
 	semParam := c.QueryParam("sem")
 
-	if branch == "" || semParam == "" {
+	if department == "" || semParam == "" {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
-			Error:  "branch and sem query parameters are required",
+			Error:  "department and sem query parameters are required",
 		})
 	}
 
@@ -66,7 +66,7 @@ func (h *SubjectHandler) ListSubjectsHandler(c echo.Context) error {
 		})
 	}
 
-	subjects, err := h.SubjectRepo.ListSubjects(branch, sem)
+	subjects, err := h.SubjectRepo.GetSubjectsByDeptAndSem(department, sem)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
 			Status: "error",

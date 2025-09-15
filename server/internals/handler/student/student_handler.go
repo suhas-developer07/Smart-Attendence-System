@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
@@ -20,12 +21,21 @@ func NewStudentHandler(r *student_service.StudentService) *StudentHandler {
 	return &StudentHandler{studentRepo: r}
 }
 func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
+
+	semStr := c.FormValue("sem")
+	sem, err := strconv.Atoi(semStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Invalid sem value: " + err.Error(),
+		})
+	}
 	// Parse form fields
 	req := domain.StudentRegisterPayload{
 		USN:      c.FormValue("usn"),
 		Username: c.FormValue("username"),
-		Branch:   c.FormValue("branch"),
-		Sem:      c.FormValue("sem"),
+		Department:   c.FormValue("department"),
+		Sem:      sem,
 	}
 
 	// Create directory for this user
