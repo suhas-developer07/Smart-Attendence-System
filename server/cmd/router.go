@@ -14,11 +14,11 @@ import (
 func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	repo := repository.NewPostgresRepo(db)
 
-	if err :=repo.InitTables();err != nil{
+	if err := repo.InitTables(); err != nil {
 		log.Fatalf("Error Initializing the tables")
 	}
 
-	StudentService := service.NewStudentService(repo)
+	StudentService := service.NewStudentService(repo, repo)
 
 	studentHandler := handler.NewStudentHandler(StudentService)
 
@@ -27,4 +27,5 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	})
 
 	e.POST("/students/register", studentHandler.StudentRegisterHandler)
+	e.POST("/addsubjects", studentHandler.AddSubject)
 }

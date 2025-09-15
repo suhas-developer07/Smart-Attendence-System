@@ -1,4 +1,4 @@
-package handler
+package studenthandler
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
 
 	"github.com/labstack/echo/v4"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
@@ -47,12 +48,12 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 	}
 
 	files := form.File["images"]
-		if len(files) != 5 {
-			return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-				Status: "error",
-				Error:  "You must upload exactly 5 images",
-			})
-		}
+	if len(files) != 5 {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "You must upload exactly 5 images",
+		})
+	}
 
 	// Save each image to userDir
 	for i, fileHeader := range files {
@@ -96,5 +97,31 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 		Status:  "success",
 		Message: "Student registered successfully",
 		Data:    map[string]int64{"student_id": id},
+	})
+}
+
+func (h *StudentHandler) AddSubject(c echo.Context) error {
+
+	var req domain.SubjectPayload
+
+     if err := c.Bind(&req); err != nil {
+        return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+            Status: "error",
+            Error:  "invalid request payload"+err.Error(),
+        })
+	}
+	id, err := h.repo.AddSubjectService(req)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to add the subjects" + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Subjects added successfully",
+		Data:    map[string]int64{"subject_id": id},
 	})
 }
