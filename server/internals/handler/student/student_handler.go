@@ -1,4 +1,4 @@
-package studenthandler
+package student_handler
 
 import (
 	"fmt"
@@ -7,18 +7,17 @@ import (
 	"os"
 	"path/filepath"
 
-
 	"github.com/labstack/echo/v4"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
-	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/service"
+	student_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/student"
 )
 
 type StudentHandler struct {
-	repo *service.StudentService
+	studentRepo *student_service.StudentService
 }
 
-func NewStudentHandler(r *service.StudentService) *StudentHandler {
-	return &StudentHandler{repo: r}
+func NewStudentHandler(r *student_service.StudentService) *StudentHandler {
+	return &StudentHandler{studentRepo: r}
 }
 func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 	// Parse form fields
@@ -85,7 +84,7 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 		}
 	}
 
-	id, err := h.repo.RegisterStudentService(req)
+	id, err := h.studentRepo.RegisterStudent(req)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
 			Status: "error",
@@ -97,31 +96,5 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 		Status:  "success",
 		Message: "Student registered successfully",
 		Data:    map[string]int64{"student_id": id},
-	})
-}
-
-func (h *StudentHandler) AddSubject(c echo.Context) error {
-
-	var req domain.SubjectPayload
-
-     if err := c.Bind(&req); err != nil {
-        return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-            Status: "error",
-            Error:  "invalid request payload"+err.Error(),
-        })
-	}
-	id, err := h.repo.AddSubjectService(req)
-
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
-			Status: "error",
-			Error:  "Failed to add the subjects" + err.Error(),
-		})
-	}
-
-	return c.JSON(http.StatusOK, domain.SuccessResponse{
-		Status:  "success",
-		Message: "Subjects added successfully",
-		Data:    map[string]int64{"subject_id": id},
 	})
 }
