@@ -97,8 +97,8 @@ func (p *PostgresRepo) AddSubject(subject domain.SubjectPayload) (int64, error) 
 	err := p.db.QueryRow(query,
 		subject.Code, subject.Name, subject.Faculty, subject.Department, subject.Sem).Scan(&id)
 	if err != nil {
-		return 0, err	
-	}	
+		return 0, err
+	}
 
 	// Auto-assign this subject to all existing students of that dept+sem
 	assignQuery := `
@@ -116,49 +116,78 @@ func (p *PostgresRepo) AddSubject(subject domain.SubjectPayload) (int64, error) 
 	return id, nil
 }
 
-func (p *PostgresRepo) GetStudentsWithSubjects(department string, sem int) ([]domain.StudentWithSubjects, error) {
-	rows, err := p.db.Query(`
-		SELECT s.student_id, s.username, s.usn,
-		       sub.subject_id, sub.subject_code, sub.subject_name, sub.faculty
-		FROM students s
-		JOIN student_subjects ss ON s.student_id = ss.student_id
-		JOIN subjects sub ON ss.subject_id = sub.subject_id
-		WHERE s.department = $1 AND s.sem = $2
-		ORDER BY s.student_id;`, department, sem)
+// func (p *PostgresRepo) GetStudentsWithSubjects(payload domain.GetStudentsWithSubjectsPayload) ([]domain.StudentWithSubjects, error) {
+// 	rows, err := p.db.Query(`
+// 		SELECT s.student_id, s.username, s.usn,
+// 		       sub.subject_id, sub.subject_code, sub.subject_name, sub.faculty
+// 		FROM students s
+// 		JOIN student_subjects ss ON s.student_id = ss.student_id
+// 		JOIN subjects sub ON ss.subject_id = sub.subject_id
+// 		WHERE s.department = $1 AND s.sem = $2
+// 		ORDER BY s.student_id;`, payload.Department, payload.Sem)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer rows.Close()
+
+// 	// Map student -> subjects
+// 	studentMap := make(map[int64]*domain.StudentWithSubjects)
+
+// 	for rows.Next() {
+// 		var sid int64
+// 		var username, usn string
+// 		var subject domain.Subject
+
+// 		err := rows.Scan(&sid, &username, &usn,
+// 			&subject.Id, &subject.Code, &subject.Name, &subject.Faculty)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		if _, exists := studentMap[sid]; !exists {
+// 			studentMap[sid] = &domain.StudentWithSubjects{
+// 				ID:       sid,
+// 				Username: username,
+// 				USN:      usn,
+// 				Subjects: []domain.Subject{},
+// 			}
+// 		}
+// 		studentMap[sid].Subjects = append(studentMap[sid].Subjects, subject)
+// 	}
+
+// 	// Convert map -> slice
+// 	students := make([]domain.StudentWithSubjects, 0, len(studentMap))
+// 	for _, s := range studentMap {
+// 		students = append(students, *s)
+// 	}
+// 	return students, nil
+// }
+
+// func (p *PostgresRepo) ListSubjects() ([]domain.Subject, error) {
+
+// }
+
+
+func (p *PostgresRepo) ListSubjects(branch string, sem int) ([]domain.Subject, error) {
+	rows, err := p.db.Query(`SELECT subject_id, subject_code, subject_name, faculty, department, sem
+	                          FROM subjects
+	                          WHERE department = $1 AND sem = $2;`, branch, sem)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	// Map student -> subjects
-	studentMap := make(map[int64]*domain.StudentWithSubjects)
-
+	var subjects []domain.Subject
 	for rows.Next() {
-		var sid int64
-		var username, usn string
-		var subject domain.Subject
-
-		err := rows.Scan(&sid, &username, &usn,
-			&subject.Id, &subject.Code, &subject.Name, &subject.Faculty)
-		if err != nil {
+		var sub domain.Subject
+		if err := rows.Scan(&sub.Id, &sub.Code, &sub.Name, &sub.Faculty, &sub.Department, &sub.Sem); err != nil {
 			return nil, err
 		}
-
-		if _, exists := studentMap[sid]; !exists {
-			studentMap[sid] = &domain.StudentWithSubjects{
-				ID:       sid,
-				Username: username,
-				USN:      usn,
-				Subjects: []domain.Subject{},
-			}
-		}
-		studentMap[sid].Subjects = append(studentMap[sid].Subjects, subject)
+		subjects = append(subjects, sub)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	// Convert map -> slice
-	students := make([]domain.StudentWithSubjects, 0, len(studentMap))
-	for _, s := range studentMap {
-		students = append(students, *s)
-	}
-	return students, nil
+	return subjects, nil	
 }

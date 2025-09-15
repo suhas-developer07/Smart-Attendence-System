@@ -6,11 +6,13 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	faculty_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/faculty"
+
 	student_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/student"
+	subject_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/subjects"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/repository"
-	faculty_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/faculty"
+
 	student_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/student"
+	subject_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/subject"
 )
 
 func SetupRoutes(e *echo.Echo, db *sql.DB) {
@@ -30,8 +32,11 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 
 	e.POST("/students/register", studentHandler.StudentRegisterHandler)
 
-	facultyService := faculty_service.NewFacultyService(repo)
-	facultyHandler := faculty_handler.NewFacultyHandler(facultyService)
 
-	e.POST("/faculty/addsubjects", facultyHandler.AddSubject)	
+	subjectService := subject_service.NewSubjectService(repo)
+	subjectHandler := subject_handler.NewSubjectHandler(subjectService)
+
+	e.POST("/faculty/addsubjects", subjectHandler.AddSubjectHandler)
+	e.GET("/students/listsubjects", subjectHandler.ListSubjectsHandler)
+	//e.POST("/faculty/getstudentswithsubjects", facultyHandler.GetStudentsWithSubjectsHandler)
 }

@@ -24,6 +24,10 @@ type StudentWithSubjects struct {
 	Subjects []Subject `json:"subjects"`
 }
 
+
+
 type SubjectRepo interface {
 	AddSubject(subject SubjectPayload) (int64, error)
+	ListSubjects(branch string, sem int) ([]Subject, error)
+	//GetStudentsWithSubjects(req GetStudentsWithSubjectsPayload) ([]StudentWithSubjects, error)
 }

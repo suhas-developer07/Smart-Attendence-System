@@ -15,6 +15,11 @@ type StudentRegisterPayload struct {
 	Sem      string `json:"sem"`
 }
 
+type GetStudentsWithSubjectsPayload struct {
+	Department string `json:"department"`
+	Sem        int    `json:"sem"`
+}
+
 type StudentRepo interface {
 	StudentRegister(student StudentRegisterPayload) (int64, error)
 }
