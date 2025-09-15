@@ -33,6 +33,18 @@ func (s *SubjectService) GetSubjectsByDeptAndSem(department string, sem int) ([]
 	return subjects, nil
 }
 
+func (s *SubjectService) GetSubjectsByFacultyID(facultyID int) ([]domain.Subject, error){
+
+	subjects,err := s.subjectRepo.GetSubjectsByFacultyID(facultyID)
+
+	if err != nil {
+		return nil,err
+	}
+
+	return subjects,nil
+}
+ 
+
 // func (s *FacultyService) GetStudentsWithSubjects(req domain.GetStudentsWithSubjectsPayload) ([]domain.StudentWithSubjects, error){
 
 // 	students, err := s.subjectRepo.GetStudentsWithSubjects(req)

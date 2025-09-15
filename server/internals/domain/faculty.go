@@ -19,3 +19,7 @@ type FacultyLoginPayload struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+
+type FacultyRepo interface {
+	GetFacultyByID(facultyID int) (Faculty, error)
+}
