@@ -43,6 +43,8 @@ func (s *SubjectService) GetSubjectsByFacultyID(facultyID int) ([]domain.Subject
 
 	return subjects,nil
 }
+
+
  
 
 // func (s *FacultyService) GetStudentsWithSubjects(req domain.GetStudentsWithSubjectsPayload) ([]domain.StudentWithSubjects, error){

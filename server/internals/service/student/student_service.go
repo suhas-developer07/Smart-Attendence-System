@@ -48,3 +48,24 @@ func (s *StudentService) UpdateStudentInfo(studentID int, payload domain.Student
 	}
 	return nil
 }
+
+func (s *StudentService) GetStudentsByDeptAndSem(department string, sem int) ([]domain.Student, error) {
+	
+	students,err := s.studentRepo.GetStudentsByDeptAndSem(department, sem)
+
+	if err != nil {
+		return []domain.Student{},err
+	}
+	return students,nil
+}
+
+func (s *StudentService) GetSubjectsByStudentID(studentID int64) ([]domain.SubjectPayload, error) {
+
+	subjects,err := s.studentRepo.GetSubjectsByStudentID(studentID)
+
+	if err != nil {
+		return []domain.SubjectPayload{},err
+	}
+
+	return subjects,nil
+}

@@ -1,4 +1,4 @@
-package faculty
+package faculty_service
 
 import (
 	"github.com/go-playground/validator/v10"
@@ -18,3 +18,10 @@ func NewFacultyService(facultyRepo domain.FacultyRepo) *FacultyService {
 	}
 }
 
+func (s *FacultyService) GetFacultyByID(facultyID int) (domain.Faculty, error) {
+	faculty, err := s.facultyRepo.GetFacultyByID(facultyID)
+	if err != nil {
+		return domain.Faculty{}, err
+	}
+	return faculty, nil
+}

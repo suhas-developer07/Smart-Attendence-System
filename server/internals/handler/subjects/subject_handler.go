@@ -11,12 +11,12 @@ import (
 
 
 type SubjectHandler struct {
-	SubjectRepo *subject_service.SubjectService
+	SubjectService *subject_service.SubjectService
 }
 
 func NewSubjectHandler(fr *subject_service.SubjectService) *SubjectHandler {
 	return &SubjectHandler{
-		SubjectRepo: fr,
+		SubjectService: fr,
 	}
 }
 
@@ -31,7 +31,7 @@ func (h *SubjectHandler) AddSubjectHandler(c echo.Context) error {
             Error:  "invalid request payload"+err.Error(),
         })
 	}
-	id, err := h.SubjectRepo.AddSubject(req)
+	id, err := h.SubjectService.AddSubject(req)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
@@ -66,7 +66,7 @@ func (h *SubjectHandler) GetSubjectsByDeptAndSemHandler(c echo.Context) error {
 		})
 	}
 
-	subjects, err := h.SubjectRepo.GetSubjectsByDeptAndSem(department, sem)
+	subjects, err := h.SubjectService.GetSubjectsByDeptAndSem(department, sem)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
 			Status: "error",
@@ -81,30 +81,36 @@ func (h *SubjectHandler) GetSubjectsByDeptAndSemHandler(c echo.Context) error {
 	})
 }
 
+func (h *SubjectHandler) GetSubjectsByFacultyIDHandler(c echo.Context) error {
+	facultyIDParam := c.QueryParam("faculty_id")
 
-// func (h *FacultyHandler) GetStudentsWithSubjectsHandler(c echo.Context) error {
-// 	var req domain.GetStudentsWithSubjectsPayload
+	if facultyIDParam == "" {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "faculty_id query parameter is required",
+		})
+	}
 
-// 	if err := c.Bind(&req); err != nil {
-// 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-// 			Status: "error",
-// 			Error:  "invalid request payload" + err.Error(),
-// 		})
-// 	}
+	facultyID, err := strconv.Atoi(facultyIDParam)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "invalid faculty_id parameter",
+		})
+	}
 
-// 	students, err := h.facultyRepo.GetStudentsWithSubjects(req)
+	subjects, err := h.SubjectService.GetSubjectsByFacultyID(facultyID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to fetch subjects" + err.Error(),
+		})
+	}
 
-// 	if err != nil {
-// 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
-// 			Status: "error",
-// 			Error:  "Failed to fetch students with subjects" + err.Error(),
-// 		})
-// 	}
-
-// 	return c.JSON(http.StatusOK, domain.SuccessResponse{
-// 		Status:  "success",
-// 		Message: "Fetched students with subjects successfully",
-// 		Data:    students,
-// 	})
-// }
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Fetched subjects successfully",
+		Data:    subjects,
+	})
+}
 

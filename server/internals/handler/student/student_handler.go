@@ -14,12 +14,13 @@ import (
 )
 
 type StudentHandler struct {
-	studentRepo *student_service.StudentService
+	StudentService *student_service.StudentService
 }
 
 func NewStudentHandler(r *student_service.StudentService) *StudentHandler {
-	return &StudentHandler{studentRepo: r}
+	return &StudentHandler{StudentService: r}
 }
+
 func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 
 	semStr := c.FormValue("sem")
@@ -94,7 +95,7 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 		}
 	}
 
-	id, err := h.studentRepo.RegisterStudent(req)
+	id, err := h.StudentService.RegisterStudent(req)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
 			Status: "error",
@@ -108,3 +109,86 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 		Data:    map[string]int64{"student_id": id},
 	})
 }
+
+func (h *StudentHandler) UpdateStudentInfoHandler(c echo.Context) error {
+	studentIDStr := c.Param("student_id")
+	studentID, err := strconv.Atoi(studentIDStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Invalid student ID: " + err.Error(),
+		})
+	}
+
+	var payload domain.StudentUpdatePayload
+	if err := c.Bind(&payload); err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Invalid request payload: " + err.Error(),
+		})
+	}
+
+	if err := h.StudentService.UpdateStudentInfo(studentID, payload); err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to update student info: " + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Student info updated successfully",
+	})
+}
+
+func (h *StudentHandler) GetStudentsByDeptAndSemHandler(c echo.Context) error {
+	department := c.QueryParam("department")
+	semStr := c.QueryParam("sem")
+	sem, err := strconv.Atoi(semStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Invalid sem value: " + err.Error(),
+		})
+	}
+
+	students, err := h.StudentService.GetStudentsByDeptAndSem(department, sem)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to get students: " + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Students retrieved successfully",
+		Data:    students,
+	})
+}
+
+func (h *StudentHandler) GetSubjectsByStudentIDHandler(c echo.Context) error {
+	studentIDStr := c.Param("student_id")
+	studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Invalid student ID: " + err.Error(),
+		})
+	}
+
+	subjects, err := h.StudentService.GetSubjectsByStudentID(studentID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to get subjects: " + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Subjects retrieved successfully",
+		Data:    subjects,
+	})
+}
+
