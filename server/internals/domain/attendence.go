@@ -1,9 +1,11 @@
 package domain
 
-type Attendence struct {
-	Attendence_id string `json:"attendence_id"`
-	Student_id   string `json:"student_id"`
-	Subject_id   string `json:"subject_id"`
+type Attendance struct {
+	ID string `json:"attendance_id"`
+	StudentID   string `json:"student_id"`
+	SubjectID   string `json:"subject_id"`
 	Date         string `json:"date"`
 	Status       string `json:"status"`
+	RecordedAt string `json:"recorded_at"`
+	CreatedAt string `json:"created_at"`
 }

@@ -30,7 +30,7 @@ type StudentUpdatePayload struct {
 type StudentRepo interface {
 	StudentRegister(student StudentRegisterPayload) (int64, error)
 	UpdateStudentInfo(studentID int, payload StudentUpdatePayload) error
-	GetStudentsByDeptAndSem(department string, sem int) ([]Student, error)
+	// GetStudentsByDeptAndSem(department string, sem int) ([]Student, error)
 	GetSubjectsByStudentID(studentID int64) ([]SubjectPayload, error)
 }
 
