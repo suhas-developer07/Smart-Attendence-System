@@ -364,3 +364,13 @@ func (p *PostgresRepo) GetFacultyByID(facultyID int) (domain.Faculty, error) {
 	}
 	return f, nil
 }
+
+func (p *PostgresRepo) CreateFaculty(req domain.FacultyRegisterPayload) (int64, error) {
+
+	var id int64
+	query := `INSERT INTO faculty (faculty_name, email, password_hash, department) VALUES($1, $2, $3, $4) RETURNING faculty_id;`
+	if err := p.db.QueryRow(query, req.Name, req.Email, req.Password, req.Department).Scan(&id); err != nil {
+		return 0, fmt.Errorf("failed to insert faculty: %w", err)
+	}
+	return id, nil
+}

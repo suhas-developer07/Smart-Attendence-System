@@ -58,12 +58,12 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 	}
 
 	files := form.File["images"]
-	// if len(files) != 5 {
-	// 	return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-	// 		Status: "error",
-	// 		Error:  "You must upload exactly 5 images",
-	// 	})
-	// }
+	if len(files) != 5 {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "You must upload exactly 5 images",
+		})
+	}
 
 	// Save each image to userDir
 	for i, fileHeader := range files {
