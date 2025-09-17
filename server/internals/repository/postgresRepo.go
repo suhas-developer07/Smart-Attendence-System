@@ -2,8 +2,10 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
@@ -396,22 +398,22 @@ func (p *PostgresRepo) ValidateFacultyAPIKey(apiKey string) (int, error) {
 
 // ------------------------ Attendance ------------------------
 
-func (p *PostgresRepo) MarkAttendance(studentID int64, subjectID int64, status string, recordedAt time.Time) (int64, error) {
+func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
 	var id int64
 	q := `INSERT INTO attendance (student_id, subject_id, date, status, recorded_at)
 	      VALUES ($1, $2, $3, $4, $5)
-	      ON CONFLICT (student_id, subject_id, date) 
+	      ON CONFLICT (student_id, subject_id, date)
 	      DO UPDATE SET status = EXCLUDED.status, recorded_at = EXCLUDED.recorded_at
 	      RETURNING attendance_id;`
 
-	err := p.db.QueryRow(q, studentID, subjectID, recordedAt.Format("2006-01-02"), status, recordedAt).Scan(&id)
+	err := p.db.QueryRow(q, req.StudentID, req.SubjectID, req.RecordedAt.Format("2006-01-02"), req.Status, req.RecordedAt).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("mark attendance: %w", err)
 	}
 	return id, nil
 }
 
-func (p *PostgresRepo) GetAttendanceByStudentAndSubject(studentID int64, subjectID int64) ([]domain.Attendance, error) {
+func (p *PostgresRepo) GetAttendanceByStudentAndSubject(studentID, subjectID int64) ([]domain.Attendance, error) {
 	q := `SELECT attendance_id, student_id, subject_id, date, status, recorded_at, created_at
 	      FROM attendance
 	      WHERE student_id = $1 AND subject_id = $2
@@ -553,4 +555,163 @@ func (p *PostgresRepo) AssignSubjectToTimeRange(facultyID int, subjectID int64, 
 	}
 	return updatedCount, skipped, nil
 }
+
+// Get summary for one student across all subjects
+func (p *PostgresRepo) GetAttendanceSummaryByStudent(studentID int64) ([]domain.SubjectSummary, error) {
+    q := `
+    SELECT s.subject_id, subj.subject_name,
+           COUNT(*) AS total_classes,
+           SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS attended,
+           ROUND(100.0 * SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*), 2) AS percentage
+    FROM attendance a
+    JOIN subjects subj ON a.subject_id = subj.subject_id
+    JOIN student_subjects s ON s.subject_id = subj.subject_id AND s.student_id = a.student_id
+    WHERE a.student_id = $1 AND a.subject_id IS NOT NULL
+    GROUP BY s.subject_id, subj.subject_name;
+    `
+
+    rows, err := p.db.Query(q, studentID)
+    if err != nil {
+        return nil, fmt.Errorf("get student summary: %w", err)
+    }
+    defer rows.Close()
+
+    var list []domain.SubjectSummary
+    for rows.Next() {
+        var s domain.SubjectSummary
+        if err := rows.Scan(&s.SubjectID, &s.SubjectName, &s.TotalClasses, &s.Attended, &s.Percentage); err != nil {
+            return nil, err
+        }
+        list = append(list, s)
+    }
+    return list, nil
+}
+
+// Get summary for one subject across all students
+func (p *PostgresRepo) GetAttendanceSummaryBySubject(subjectID int64) ([]domain.StudentSummary, error) {
+    q := `
+    SELECT st.student_id, st.student_name,
+           COUNT(*) AS total_classes,
+           SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS attended,
+           ROUND(100.0 * SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*), 2) AS percentage
+    FROM attendance a
+    JOIN students st ON a.student_id = st.student_id
+    WHERE a.subject_id = $1
+    GROUP BY st.student_id, st.student_name;
+    `
+
+    rows, err := p.db.Query(q, subjectID)
+    if err != nil {
+        return nil, fmt.Errorf("get subject summary: %w", err)
+    }
+    defer rows.Close()
+
+    var list []domain.StudentSummary
+    for rows.Next() {
+        var s domain.StudentSummary
+        if err := rows.Scan(&s.StudentID, &s.StudentName, &s.TotalClasses, &s.Attended, &s.Percentage); err != nil {
+            return nil, err
+        }
+        list = append(list, s)
+    }
+    return list, nil
+}
+
+
+func (p *PostgresRepo) GetClassAttendance(subjectID int64, date time.Time) ([]domain.ClassAttendance, error) {
+    q := `
+    SELECT st.student_id, st.student_name, a.date, a.status
+    FROM attendance a
+    JOIN students st ON a.student_id = st.student_id
+    WHERE a.subject_id = $1 AND a.date = $2
+    ORDER BY st.student_name;
+    `
+
+    rows, err := p.db.Query(q, subjectID, date)
+    if err != nil {
+        return nil, fmt.Errorf("get class attendance: %w", err)
+    }
+    defer rows.Close()
+
+    var list []domain.ClassAttendance
+    for rows.Next() {
+        var ca domain.ClassAttendance
+        if err := rows.Scan(&ca.StudentID, &ca.StudentName, &ca.Date, &ca.Status); err != nil {
+            return nil, err
+        }
+        list = append(list, ca)
+    }
+    return list, nil
+}
+
+func (p *PostgresRepo) GetStudentAttendanceHistory(studentID int64, subjectID int64) ([]domain.Attendance, error) {
+    q := `SELECT attendance_id, student_id, subject_id, date, status, recorded_at, created_at
+          FROM attendance
+          WHERE student_id = $1 AND subject_id = $2
+          ORDER BY date ASC;`
+
+    rows, err := p.db.Query(q, studentID, subjectID)
+    if err != nil {
+        return nil, fmt.Errorf("get student history: %w", err)
+    }
+    defer rows.Close()
+
+    var list []domain.Attendance
+    for rows.Next() {
+        var a domain.Attendance
+        if err := rows.Scan(&a.ID, &a.StudentID, &a.SubjectID, &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
+            return nil, err
+        }
+        list = append(list, a)
+    }
+    return list, nil
+}
+
+func (p *PostgresRepo) ExportSubjectAttendanceCSV(subjectID int64, fromDate, toDate time.Time, filePath string) error {
+    q := `
+    SELECT st.student_id, st.student_name, a.date, a.status
+    FROM attendance a
+    JOIN students st ON a.student_id = st.student_id
+    WHERE a.subject_id = $1 AND a.date BETWEEN $2 AND $3
+    ORDER BY a.date, st.student_name;
+    `
+
+    rows, err := p.db.Query(q, subjectID, fromDate, toDate)
+    if err != nil {
+        return fmt.Errorf("export query: %w", err)
+    }
+    defer rows.Close()
+
+    f, err := os.Create(filePath)
+    if err != nil {
+        return fmt.Errorf("create file: %w", err)
+    }
+    defer f.Close()
+
+    writer := csv.NewWriter(f)
+    defer writer.Flush()
+
+    // header
+    writer.Write([]string{"Student ID", "Student Name", "Date", "Status"})
+
+    // rows
+    for rows.Next() {
+        var studentID int64
+        var studentName, status string
+        var date time.Time
+        if err := rows.Scan(&studentID, &studentName, &date, &status); err != nil {
+            return err
+        }
+        record := []string{
+            fmt.Sprintf("%d", studentID),
+            studentName,
+            date.Format("2006-01-02"),
+            status,
+        }
+        writer.Write(record)
+    }
+
+    return writer.Error()
+}
+
 

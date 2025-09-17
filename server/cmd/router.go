@@ -7,11 +7,13 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	attendance_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/attendance"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/faculty"
 	student_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/student"
 	subject_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/subjects"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/repository"
 
+	attendence_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/attendence"
 	faculty_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/faculty"
 	student_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/student"
 	subject_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/subject"
@@ -32,6 +34,9 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 
 	facultyService := faculty_service.NewFacultyService(repo)
 	facultyHandler := faculty.NewFacultyHandler(facultyService)
+
+	attendanceService := attendence_service.NewAttendanceService(repo)
+	attendanceHandler := attendance_handler.NewAttendanceHandler(attendanceService)
 
 
 	//  Student 
@@ -60,7 +65,17 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 		faculty.GET("/department/:dept", facultyHandler.GetFacultyByDepartmentHandler) 
 	}
 
-	// ---------- Health ----------
+	attendance := e.Group("/attendance")
+	{
+		attendance.POST("", attendanceHandler.MarkAttendanceHandler)
+		attendance.GET("", attendanceHandler.GetAttendanceByStudentAndSubjectHandler)
+		attendance.GET("/subject", attendanceHandler.GetAttendanceBySubjectHandler)
+		attendance.GET("/summary/subject/:subject_id", attendanceHandler.GetAttendanceSummaryBySubjectHandler)
+		attendance.GET("/class", attendanceHandler.GetClassAttendanceHandler)
+		attendance.GET("/student/history", attendanceHandler.GetStudentAttendanceHistoryHandler)
+	}
+
+	// Health
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "server is healthy")
 	})
