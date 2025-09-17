@@ -44,15 +44,6 @@ func (s *FacultyService) RegisterFaculty(req domain.FacultyRegisterPayload) (int
 }
 
 
-
-func (s *FacultyService) GetFacultyByID(facultyID int) (domain.Faculty, error) {
-	faculty, err := s.facultyRepo.GetFacultyByID(facultyID)
-	if err != nil {
-		return domain.Faculty{}, err
-	}
-	return faculty, nil
-}
-
 func (s *FacultyService) AuthenticateFaculty(req domain.FacultyLoginPayload) (int64, error) {
 	if err := s.validate.Struct(req); err != nil {
 		return 0, fmt.Errorf("validation error: %w", err)
@@ -65,3 +56,37 @@ func (s *FacultyService) AuthenticateFaculty(req domain.FacultyLoginPayload) (in
 
 	return facultyID, nil
 }
+
+func (s *FacultyService) GetFacultyByID(facultyID int) (domain.Faculty, error) {
+	faculty, err := s.facultyRepo.GetFacultyByID(facultyID)
+	if err != nil {
+		return domain.Faculty{}, err
+	}
+	return faculty, nil
+}
+
+
+func (s *FacultyService) GetAllFaculty() ([]domain.Faculty, error) {
+	faculties, err := s.facultyRepo.GetAllFaculty()
+	if err != nil {
+		return nil, err
+	}
+	return faculties, nil
+}
+
+func (s *FacultyService) GetFacultyByDepartment(department string) ([]domain.Faculty, error) {
+	faculties, err := s.facultyRepo.GetAllFaculty()
+	if err != nil {
+		return nil, err
+	}
+
+	var filtered []domain.Faculty
+	for _, f := range faculties {
+		if f.Department == department {
+			filtered = append(filtered, f)
+		}
+	}
+
+	return filtered, nil
+}
+

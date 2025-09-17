@@ -115,6 +115,8 @@ func (p *PostgresRepo) StudentRegister(student domain.StudentRegisterPayload) (i
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	fmt.Println("Department:",student.Department)
+
 	var id int64
 	query := `INSERT INTO students (usn, username, department, sem)
 	          VALUES ($1, $2, $3, $4) RETURNING student_id;`
@@ -191,7 +193,7 @@ func (p *PostgresRepo) AddSubject(subject domain.SubjectPayload) (int64, error) 
 }
 
 // ------------------------ Subjects queries ------------------------
-
+//subjects of a particular department and sem
 func (p *PostgresRepo) GetSubjectsByDeptAndSem(department string, sem int) ([]domain.Subject, error) {
 	q := `SELECT s.subject_id, s.subject_code, s.subject_name, s.department, s.sem, f.faculty_name
 	      FROM subjects s JOIN faculty f ON s.faculty_id = f.faculty_id
@@ -239,7 +241,7 @@ func (p *PostgresRepo) GetSubjectsByStudentID(studentID int64) ([]domain.Subject
 	}
 	return out, nil
 }
-
+//subjects handled by faculty
 func (p *PostgresRepo) GetSubjectsByFacultyID(facultyID int) ([]domain.Subject, error) {
 	q := `SELECT s.subject_id, s.subject_code, s.subject_name, s.department, s.sem, f.faculty_name
 	      FROM subjects s JOIN faculty f ON s.faculty_id = f.faculty_id
@@ -294,6 +296,60 @@ func (p *PostgresRepo) AuthenticateFaculty(req domain.FacultyLoginPayload) (int6
 	}
 	return id, nil
 }
+
+// Get all faculty
+func (p *PostgresRepo) GetAllFaculty() ([]domain.Faculty, error) {
+    query := `SELECT faculty_id, faculty_name, email, department FROM faculty`
+
+    rows, err := p.db.Query(query)
+    if err != nil {
+        return nil, fmt.Errorf("get faculty: %w", err)
+    }
+    defer rows.Close()
+
+    var facultyList []domain.Faculty
+    for rows.Next() {
+        var f domain.Faculty
+        if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Department); err != nil {
+            return nil, err
+        }
+        facultyList = append(facultyList, f)
+    }
+    return facultyList, nil
+}
+
+func (p *PostgresRepo) GetFacultyByDepartment(department string) ([]domain.Faculty, error) {
+    query := `SELECT faculty_id, faculty_name, email, department FROM faculty WHERE department = $1`
+
+    rows, err := p.db.Query(query, department)
+    if err != nil {
+        return nil, fmt.Errorf("get faculty by department: %w", err)
+    }
+    defer rows.Close()
+
+    var facultyList []domain.Faculty
+    for rows.Next() {
+        var f domain.Faculty
+        if err := rows.Scan(&f.ID, &f.Name, &f.Email, &f.Department); err != nil {
+            return nil, err
+        }
+        facultyList = append(facultyList, f)
+    }
+    return facultyList, nil
+}
+
+func (p *PostgresRepo) GetFacultyByID(facultyID int) (domain.Faculty, error) {
+	var f domain.Faculty
+	q := `SELECT faculty_id, faculty_name, email, department, created_at FROM faculty WHERE faculty_id = $1;`
+	if err := p.db.QueryRow(q, facultyID).Scan(&f.ID, &f.Name, &f.Email, &f.Department, &f.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return domain.Faculty{}, fmt.Errorf("faculty not found")
+		}
+		return domain.Faculty{}, fmt.Errorf("query faculty: %w", err)
+	}
+	return f, nil
+}
+
 
 func (p *PostgresRepo) CreateAdmin(username, email, password string) (int64, error) {
 	pwHash, err := utils.HashPassword(password)

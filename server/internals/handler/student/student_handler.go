@@ -58,12 +58,12 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 	}
 
 	files := form.File["images"]
-	if len(files) != 5 {
-		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-			Status: "error",
-			Error:  "You must upload exactly 5 images",
-		})
-	}
+	// if len(files) != 5 {
+	// 	return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+	// 		Status: "error",
+	// 		Error:  "You must upload exactly 5 images",
+	// 	})
+	// }
 
 	// Save each image to userDir
 	for i, fileHeader := range files {
@@ -167,28 +167,28 @@ func (h *StudentHandler) UpdateStudentInfoHandler(c echo.Context) error {
 // 	})
 // }
 
-func (h *StudentHandler) GetSubjectsByStudentIDHandler(c echo.Context) error {
-	studentIDStr := c.Param("student_id")
-	studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-			Status: "error",
-			Error:  "Invalid student ID: " + err.Error(),
-		})
-	}
+// func (h *StudentHandler) GetSubjectsByStudentIDHandler(c echo.Context) error {
+// 	studentIDStr := c.Param("student_id")
+// 	studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
+// 	if err != nil {
+// 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+// 			Status: "error",
+// 			Error:  "Invalid student ID: " + err.Error(),
+// 		})
+// 	}
 
-	subjects, err := h.StudentService.GetSubjectsByStudentID(studentID)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
-			Status: "error",
-			Error:  "Failed to get subjects: " + err.Error(),
-		})
-	}
+// 	subjects, err := h.StudentService.GetSubjectsByStudentID(studentID)
+// 	if err != nil {
+// 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+// 			Status: "error",
+// 			Error:  "Failed to get subjects: " + err.Error(),
+// 		})
+// 	}
 
-	return c.JSON(http.StatusOK, domain.SuccessResponse{
-		Status:  "success",
-		Message: "Subjects retrieved successfully",
-		Data:    subjects,
-	})
-}
+// 	return c.JSON(http.StatusOK, domain.SuccessResponse{
+// 		Status:  "success",
+// 		Message: "Subjects retrieved successfully",
+// 		Data:    subjects,
+// 	})
+// }
 

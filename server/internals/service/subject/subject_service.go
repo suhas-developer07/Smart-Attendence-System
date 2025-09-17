@@ -1,15 +1,21 @@
 package subject_service
 
-import "github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
+import (
+	"github.com/go-playground/validator/v10"
+	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
+)
 
 
 type SubjectService struct{
 	subjectRepo domain.SubjectRepo
+	validator *validator.Validate
 }
 
 func NewSubjectService(subjectRepo domain.SubjectRepo) *SubjectService {
+	v := validator.New()
 	return &SubjectService{
-		subjectRepo: 	subjectRepo,
+		subjectRepo: subjectRepo,
+		validator:   v,
 	}
 }
 
@@ -42,6 +48,15 @@ func (s *SubjectService) GetSubjectsByFacultyID(facultyID int) ([]domain.Subject
 	}
 
 	return subjects,nil
+}
+//subjects of a particular student
+func (s *SubjectService) GetSubjectsByStudentID(studentID int64) ([]domain.SubjectPayload, error){
+
+	subjects, err := s.subjectRepo.GetSubjectsByStudentID(studentID)
+	if err != nil {
+		return nil, err
+	}
+	return subjects, nil
 }
 
 

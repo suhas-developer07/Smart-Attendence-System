@@ -45,6 +45,31 @@ func (h *FacultyHandler) RegisterFacultyHandler(c echo.Context) error {
 	})
 }
 
+func (h *FacultyHandler) AuthenticateFacultyHandler(c echo.Context) error {
+	var req domain.FacultyLoginPayload
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "invalid request payload" + err.Error(),
+		})
+	}
+
+	facultyID, err := h.FacultyService.AuthenticateFaculty(req)
+
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Authentication failed: " + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Authentication successful",
+		Data:    map[string]int64{"faculty_id": facultyID},
+	})
+}
 func (h *FacultyHandler) GetFacultyByIDHandler(c echo.Context) error {
 	facultyIDParam := c.Param("id")
 
@@ -68,5 +93,45 @@ func (h *FacultyHandler) GetFacultyByIDHandler(c echo.Context) error {
 		Status:  "success",
 		Message: "Faculty retrieved successfully",
 		Data:    faculty,
+	})
+}
+
+func (h *FacultyHandler) GetAllFacultyHandler(c echo.Context) error {
+	faculties, err := h.FacultyService.GetAllFaculty()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to get faculties: " + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Faculties retrieved successfully",
+		Data:    faculties,
+	})
+}
+
+func (h *FacultyHandler) GetFacultyByDepartmentHandler(c echo.Context) error {
+	department := c.Param("department")
+	if department == "" {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "department query parameter is required",
+		})
+	}
+
+	faculties, err := h.FacultyService.GetFacultyByDepartment(department)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to get faculties: " + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Faculties retrieved successfully",
+		Data:    faculties,
 	})
 }

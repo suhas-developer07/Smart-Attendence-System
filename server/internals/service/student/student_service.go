@@ -59,13 +59,13 @@ func (s *StudentService) UpdateStudentInfo(studentID int, payload domain.Student
 // 	return students,nil
 // }
 
-func (s *StudentService) GetSubjectsByStudentID(studentID int64) ([]domain.SubjectPayload, error) {
+// func (s *StudentService) GetSubjectsByStudentID(studentID int64) ([]domain.SubjectPayload, error) {
 
-	subjects,err := s.studentRepo.GetSubjectsByStudentID(studentID)
+// 	subjects,err := s.studentRepo.GetSubjectsByStudentID(studentID)
 
-	if err != nil {
-		return []domain.SubjectPayload{},err
-	}
+// 	if err != nil {
+// 		return []domain.SubjectPayload{},err
+// 	}
 
-	return subjects,nil
-}
+// 	return subjects,nil
+// }

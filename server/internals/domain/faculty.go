@@ -24,4 +24,5 @@ type FacultyRepo interface {
 	GetFacultyByID(facultyID int) (Faculty, error)
 	CreateFaculty(req FacultyRegisterPayload) (int64, error)
 	AuthenticateFaculty(req FacultyLoginPayload) (int64, error)
+	GetAllFaculty() ([]Faculty, error)
 }

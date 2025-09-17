@@ -1,4 +1,5 @@
 package domain
+
 type Student struct {
 	ID           int64   `json:"student_id"`
 	USN          string  `json:"usn"`

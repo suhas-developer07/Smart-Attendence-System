@@ -20,7 +20,6 @@ func NewSubjectHandler(fr *subject_service.SubjectService) *SubjectHandler {
 	}
 }
 
-
 func (h *SubjectHandler) AddSubjectHandler(c echo.Context) error {
 
 	var req domain.SubjectPayload
@@ -114,3 +113,35 @@ func (h *SubjectHandler) GetSubjectsByFacultyIDHandler(c echo.Context) error {
 	})
 }
 
+func (h *SubjectHandler) GetSubjectsByStudentIDHandler(c echo.Context) error {
+	studentIDParam := c.QueryParam("student_id")
+	
+	if studentIDParam == "" {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "student_id query parameter is required",
+		})
+	}
+
+	studentID, err := strconv.ParseInt(studentIDParam, 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "invalid student_id parameter",
+		})
+	}
+
+	subjects, err := h.SubjectService.GetSubjectsByStudentID(studentID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to fetch subjects" + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Fetched subjects successfully",
+		Data:    subjects,
+	})
+}
