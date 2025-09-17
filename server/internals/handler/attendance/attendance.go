@@ -10,18 +10,17 @@ import (
 	attendence_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/attendence"
 )
 
-
 type AttendanceHandler struct {
 	AttendanceService *attendence_service.AttendanceService
 }
 
-func NewAttendanceHandler(ar *attendence_service.AttendanceService) *AttendanceHandler{
+func NewAttendanceHandler(ar *attendence_service.AttendanceService) *AttendanceHandler {
 	return &AttendanceHandler{
 		AttendanceService: ar,
 	}
 }
 
-func (h *AttendanceHandler) MarkAttendanceHandler(c echo.Context)error {
+func (h *AttendanceHandler) MarkAttendanceHandler(c echo.Context) error {
 	var req domain.AttendancePayload
 
 	if err := c.Bind(&req); err != nil {
@@ -42,11 +41,11 @@ func (h *AttendanceHandler) MarkAttendanceHandler(c echo.Context)error {
 	return c.JSON(http.StatusOK, domain.SuccessResponse{
 		Status:  "success",
 		Message: "Attendance marked successfully",
-		Data:   map[string]int64{"attendance_id": id},
+		Data:    map[string]int64{"attendance_id": id},
 	})
 }
 
-func (h *AttendanceHandler) GetAttendanceByStudentAndSubjectHandler(c echo.Context)error {
+func (h *AttendanceHandler) GetAttendanceByStudentAndSubjectHandler(c echo.Context) error {
 	var studentID = c.QueryParam("student_id")
 	var subjectID = c.QueryParam("subject_id")
 
@@ -57,7 +56,7 @@ func (h *AttendanceHandler) GetAttendanceByStudentAndSubjectHandler(c echo.Conte
 		})
 	}
 	studentIDInt, err := strconv.ParseInt(studentID, 10, 64)
-	
+
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
@@ -85,11 +84,10 @@ func (h *AttendanceHandler) GetAttendanceByStudentAndSubjectHandler(c echo.Conte
 	return c.JSON(http.StatusOK, domain.SuccessResponse{
 		Status:  "success",
 		Message: "Attendance fetched successfully",
-		Data:   attendances,
+		Data:    attendances,
 	})
 }
-
-func (h *AttendanceHandler) GetAttendanceBySubjectHandler(c echo.Context)error {
+func (h *AttendanceHandler) GetAttendanceBySubjectHandler(c echo.Context) error {
 	var subjectID = c.QueryParam("subject_id")
 	var fromDate = c.QueryParam("from_date")
 	var toDate = c.QueryParam("to_date")
@@ -101,48 +99,47 @@ func (h *AttendanceHandler) GetAttendanceBySubjectHandler(c echo.Context)error {
 		})
 	}
 
-	// Parse subjectID to int64
+	
 	subjectIDInt, err := strconv.ParseInt(subjectID, 10, 64)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
-			Error:  "invalid subject_id" + err.Error(),
+			Error:  "invalid subject_id: " + err.Error(),
 		})
 	}
-	
-	// Parse fromDate and toDate to time.Time
-	fromDateTime, err := time.Parse("2006-01-02", fromDate)
+
+	fromDateTime, err := time.Parse(time.RFC3339, fromDate)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
-			Error:  "invalid from_date" + err.Error(),
+			Error:  "invalid from_date: " + err.Error(),
 		})
 	}
-	toDateTime, err := time.Parse("2006-01-02", toDate)
+
+	toDateTime, err := time.Parse(time.RFC3339, toDate)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
-			Error:  "invalid to_date" + err.Error(),
+			Error:  "invalid to_date: " + err.Error(),
 		})
 	}
 
 	attendances, err := h.AttendanceService.GetAttendanceBySubject(subjectIDInt, fromDateTime, toDateTime)
-
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
 			Status: "error",
-			Error:  "Failed to fetch attendance" + err.Error(),
+			Error:  "failed to fetch attendance: " + err.Error(),
 		})
 	}
 
 	return c.JSON(http.StatusOK, domain.SuccessResponse{
 		Status:  "success",
 		Message: "Attendance fetched successfully",
-		Data:   attendances,
+		Data:    attendances,
 	})
 }
 
-func (h *AttendanceHandler) AssignSubjectToTimeRangeHandler(c echo.Context)error {
+func (h *AttendanceHandler) AssignSubjectToTimeRangeHandler(c echo.Context) error {
 	var req struct {
 		FacultyID int    `json:"faculty_id"`
 		SubjectID int64  `json:"subject_id"`
@@ -187,7 +184,7 @@ func (h *AttendanceHandler) AssignSubjectToTimeRangeHandler(c echo.Context)error
 			Error:  "Failed to assign subject to time range" + err.Error(),
 		})
 	}
-	
+
 	return c.JSON(http.StatusOK, domain.SuccessResponse{
 		Status:  "success",
 		Message: "Subject assigned to time range",
@@ -196,11 +193,11 @@ func (h *AttendanceHandler) AssignSubjectToTimeRangeHandler(c echo.Context)error
 			"skipped":      skipped,
 		},
 	},
-)
+	)
 }
 
 func (h *AttendanceHandler) GetAttendanceSummaryBySubjectHandler(c echo.Context) error {
-	var subjectID = c.QueryParam("subject_id")
+	var subjectID = c.Param("subject_id")
 
 	if subjectID == "" {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
@@ -227,17 +224,17 @@ func (h *AttendanceHandler) GetAttendanceSummaryBySubjectHandler(c echo.Context)
 	return c.JSON(http.StatusOK, domain.SuccessResponse{
 		Status:  "success",
 		Message: "Attendance summary fetched successfully",
-		Data:   summaries,
+		Data:    summaries,
 	})
 }
 
-func (h *AttendanceHandler) GetClassAttendanceHandler(c echo.Context)error {
+func (h *AttendanceHandler) GetClassAttendanceHandler(c echo.Context) error {
 	var subjectID = c.QueryParam("subject_id")
 	var date = c.QueryParam("date")
 
-	if subjectID == "" || date == ""{
-		return c.JSON(http.StatusBadRequest,domain.ErrorResponse{
-			Status : "error",
+	if subjectID == "" || date == "" {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
 			Error:  "subject_id is required",
 		})
 	}
@@ -258,19 +255,19 @@ func (h *AttendanceHandler) GetClassAttendanceHandler(c echo.Context)error {
 		})
 	}
 
-	ClassAttendance, err := h.AttendanceService.GetClassAttendance(subjectIDInt,dateTime)
+	ClassAttendance, err := h.AttendanceService.GetClassAttendance(subjectIDInt, dateTime)
 
 	if err != nil {
-		return c.JSON(http.StatusBadRequest,domain.ErrorResponse{
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
-		    Error: "failed to get Class Attendance" +err.Error(),
+			Error:  "failed to get Class Attendance" + err.Error(),
 		})
 	}
 
-	return  c.JSON(http.StatusOK, domain.SuccessResponse{
-		Status: "success",
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
 		Message: "Attendance fetched successfull",
-		Data: ClassAttendance,
+		Data:    ClassAttendance,
 	})
 }
 
@@ -278,10 +275,10 @@ func (h *AttendanceHandler) GetStudentAttendanceHistoryHandler(c echo.Context) e
 	var studentID = c.QueryParam("student_id")
 	var subjectID = c.QueryParam("subject_id")
 
-	if subjectID == "" || studentID == ""{
-		return c.JSON(http.StatusBadRequest,domain.ErrorResponse{
+	if subjectID == "" || studentID == "" {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
-			Error: "student_id and subject_id are required",
+			Error:  "student_id and subject_id are required",
 		})
 	}
 
@@ -302,7 +299,7 @@ func (h *AttendanceHandler) GetStudentAttendanceHistoryHandler(c echo.Context) e
 		})
 	}
 
-	attendanceHistory ,err  := h.AttendanceService.GetStudentAttendanceHistory(studentIDInt,subjectIDInt)
+	attendanceHistory, err := h.AttendanceService.GetStudentAttendanceHistory(studentIDInt, subjectIDInt)
 
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
@@ -314,6 +311,6 @@ func (h *AttendanceHandler) GetStudentAttendanceHistoryHandler(c echo.Context) e
 	return c.JSON(http.StatusOK, domain.SuccessResponse{
 		Status:  "success",
 		Message: "Attendance history fetched successfully",
-		Data:   attendanceHistory,
+		Data:    attendanceHistory,
 	})
 }

@@ -23,8 +23,9 @@ func NewAttendanceService(attendanceRepo domain.AttendanceRepository) *Attendanc
 
 func (s *AttendanceService) MarkAttendance(attendance *domain.AttendancePayload) (int64, error) {
 	if err := s.validate.Struct(attendance); err != nil {
-		return 0, fmt.Errorf("validation error: %w", err)
-	}
+    fmt.Printf("%#v\n", attendance) // inspect actual struct & values
+}
+
 	id, err := s.attendanceRepo.MarkAttendance(attendance)
 	if err != nil {
 		return 0, fmt.Errorf("error marking attendance: %w", err)
@@ -33,7 +34,7 @@ func (s *AttendanceService) MarkAttendance(attendance *domain.AttendancePayload)
 	
 }
 
-func (s *AttendanceService) GetAttendanceByStudentAndSubject(studentID int64, subjectID int64) ([]domain.Attendance, error) {
+func (s *AttendanceService) GetAttendanceByStudentAndSubject(studentID int64, subjectID int64) ([]domain.AttendanceWithNames, error) {
 	if err := s.validate.Var(studentID, "required"); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
 	}
@@ -47,22 +48,29 @@ func (s *AttendanceService) GetAttendanceByStudentAndSubject(studentID int64, su
 	}
 	return attendances, nil
 }
-
-func (s *AttendanceService) GetAttendanceBySubject(subjectID int64, fromDate, toDate time.Time) ([]domain.Attendance, error) {
-	if err := s.validate.Var(subjectID, "required"); err != nil {
-		return nil, fmt.Errorf("validation error: %w", err)
-	}
-	if err := s.validate.Var(fromDate, "required,datetime=2006-01-02"); err != nil {
-		return nil, fmt.Errorf("validation error: %w", err)
-	}
-	if err := s.validate.Var(toDate, "required,datetime=2006-01-02"); err != nil {
-		return nil, fmt.Errorf("validation error: %w", err)
+func (s *AttendanceService) GetAttendanceBySubject(subjectID int64, fromDate, toDate time.Time) ([]domain.AttendanceWithNames, error) {
+	// Validate subjectID
+	if subjectID == 0 {
+		return nil, fmt.Errorf("validation error: subject_id is required")
 	}
 
+	// Validate fromDate and toDate
+	if fromDate.IsZero() {
+		return nil, fmt.Errorf("validation error: from_date is required")
+	}
+	if toDate.IsZero() {
+		return nil, fmt.Errorf("validation error: to_date is required")
+	}
+	if fromDate.After(toDate) {
+		return nil, fmt.Errorf("validation error: from_date cannot be after to_date")
+	}
+
+	// Call repository
 	attendances, err := s.attendanceRepo.GetAttendanceBySubject(subjectID, fromDate, toDate)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching attendance: %w", err)
 	}
+
 	return attendances, nil
 }
 
@@ -116,7 +124,7 @@ func (s *AttendanceService) GetClassAttendance(subjectID int64,date time.Time)([
 	return attendances, nil
 }
 
-func (s *AttendanceService) GetStudentAttendanceHistory(studentID int64, subjectID int64)([]domain.Attendance,error){
+func (s *AttendanceService) GetStudentAttendanceHistory(studentID int64, subjectID int64)([]domain.StudentHistory,error){
 	if err := s.validate.Var(studentID, "required"); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
 	}

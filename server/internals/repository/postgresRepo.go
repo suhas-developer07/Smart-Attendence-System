@@ -90,7 +90,7 @@ func (p *PostgresRepo) InitTables() error {
 			student_id INT NOT NULL,
 			subject_id INT  NULL,
 			date DATE NOT NULL,
-			status VARCHAR(20) NOT NULL CHECK (status IN ('Present','Absent','Late')),
+			status VARCHAR(20) NOT NULL CHECK (status IN ('Present','Absent')),
 			recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			created_at TIMESTAMPTZ DEFAULT now(),
 			CONSTRAINT fk_attendance_student FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
@@ -397,72 +397,89 @@ func (p *PostgresRepo) ValidateFacultyAPIKey(apiKey string) (int, error) {
 }
 
 // ------------------------ Attendance ------------------------
-
 func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
 	var id int64
+
+	// Convert RecordedAt to IST (Asia/Kolkata)
+	loc, _ := time.LoadLocation("Asia/Kolkata")
+	istTime := req.RecordedAt.In(loc)
+
 	q := `INSERT INTO attendance (student_id, subject_id, date, status, recorded_at)
 	      VALUES ($1, $2, $3, $4, $5)
 	      ON CONFLICT (student_id, subject_id, date)
 	      DO UPDATE SET status = EXCLUDED.status, recorded_at = EXCLUDED.recorded_at
 	      RETURNING attendance_id;`
 
-	err := p.db.QueryRow(q, req.StudentID, req.SubjectID, req.RecordedAt.Format("2006-01-02"), req.Status, req.RecordedAt).Scan(&id)
+	err := p.db.QueryRow(
+		q,
+		req.StudentID,
+		req.SubjectID,
+		istTime.Format("2006-01-02"), // store IST date
+		req.Status,
+		istTime, // store IST timestamp
+	).Scan(&id)
+
 	if err != nil {
 		return 0, fmt.Errorf("mark attendance: %w", err)
 	}
 	return id, nil
 }
+func (p *PostgresRepo) GetAttendanceByStudentAndSubject(studentID, subjectID int64) ([]domain.AttendanceWithNames, error) {
+    q := `
+    SELECT a.attendance_id, a.student_id, st.username AS student_name, a.subject_id, sub.subject_name,
+           a.date, a.status, a.recorded_at, a.created_at
+    FROM attendance a
+    JOIN students st ON a.student_id = st.student_id
+    JOIN subjects sub ON a.subject_id = sub.subject_id
+    WHERE a.student_id = $1 AND a.subject_id = $2
+    ORDER BY a.date ASC;`
 
-func (p *PostgresRepo) GetAttendanceByStudentAndSubject(studentID, subjectID int64) ([]domain.Attendance, error) {
-	q := `SELECT attendance_id, student_id, subject_id, date, status, recorded_at, created_at
-	      FROM attendance
-	      WHERE student_id = $1 AND subject_id = $2
-	      ORDER BY date ASC;`
+    rows, err := p.db.Query(q, studentID, subjectID)
+    if err != nil {
+        return nil, fmt.Errorf("query attendance: %w", err)
+    }
+    defer rows.Close()
 
-	rows, err := p.db.Query(q, studentID, subjectID)
-	if err != nil {
-		return nil, fmt.Errorf("query attendance: %w", err)
-	}
-	defer rows.Close()
-
-	var list []domain.Attendance
-	for rows.Next() {
-		var a domain.Attendance
-		if err := rows.Scan(&a.ID, &a.StudentID, &a.SubjectID, &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan attendance: %w", err)
-		}
-		list = append(list, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows err: %w", err)
-	}
-	return list, nil
+    var list []domain.AttendanceWithNames
+    for rows.Next() {
+        var a domain.AttendanceWithNames
+        if err := rows.Scan(&a.ID, &a.StudentID, &a.StudentName, &a.SubjectID, &a.SubjectName,
+            &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
+            return nil, fmt.Errorf("scan attendance: %w", err)
+        }
+        list = append(list, a)
+    }
+    return list, rows.Err()
 }
 
-func (p *PostgresRepo) GetAttendanceBySubject(subjectID int64, fromDate, toDate time.Time) ([]domain.Attendance, error) {
-	q := `SELECT attendance_id, student_id, subject_id, date, status, recorded_at, created_at
-	      FROM attendance
-	      WHERE subject_id = $1 AND date BETWEEN $2 AND $3
-	      ORDER BY date ASC;`
+func (p *PostgresRepo) GetAttendanceBySubject(subjectID int64, fromDate, toDate time.Time) ([]domain.AttendanceWithNames, error) {  
+     q := `
+       SELECT a.attendance_id, a.student_id, st.username AS student_name,
+       a.subject_id, sub.subject_name,
+       a.date, a.status, a.recorded_at, a.created_at
+       FROM attendance a
+       JOIN students st ON a.student_id = st.student_id
+	   JOIN subjects sub ON a.subject_id = sub.subject_id
+	   WHERE a.subject_id = $1 AND a.date BETWEEN $2 AND $3
+       ORDER BY a.date ASC;`
 
-	rows, err := p.db.Query(q, subjectID, fromDate, toDate)
-	if err != nil {
-		return nil, fmt.Errorf("query attendance by subject: %w", err)
-	}
-	defer rows.Close()
 
-	var list []domain.Attendance
-	for rows.Next() {
-		var a domain.Attendance
-		if err := rows.Scan(&a.ID, &a.StudentID, &a.SubjectID, &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan attendance: %w", err)
-		}
-		list = append(list, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows err: %w", err)
-	}
-	return list, nil
+    rows, err := p.db.Query(q, subjectID, fromDate, toDate)
+    if err != nil {
+        return nil, fmt.Errorf("query attendance by subject: %w", err)
+    }
+    defer rows.Close()
+
+    var list []domain.AttendanceWithNames
+    for rows.Next() {
+        var a domain.AttendanceWithNames
+        if err := rows.Scan(&a.ID, &a.StudentID, &a.StudentName, &a.SubjectID, &a.SubjectName,
+            &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
+            return nil, fmt.Errorf("scan attendance: %w", err)
+        }
+        list = append(list, a)
+    }
+    return list, rows.Err()
 }
 
 
@@ -644,11 +661,15 @@ func (p *PostgresRepo) GetClassAttendance(subjectID int64, date time.Time) ([]do
     return list, nil
 }
 
-func (p *PostgresRepo) GetStudentAttendanceHistory(studentID int64, subjectID int64) ([]domain.Attendance, error) {
-    q := `SELECT attendance_id, student_id, subject_id, date, status, recorded_at, created_at
-          FROM attendance
-          WHERE student_id = $1 AND subject_id = $2
-          ORDER BY date ASC;`
+func (p *PostgresRepo) GetStudentAttendanceHistory(studentID int64, subjectID int64) ([]domain.StudentHistory, error) {
+    q := `
+    SELECT a.attendance_id, a.date, a.status,
+           a.subject_id, sub.subject_name,
+           a.recorded_at
+    FROM attendance a
+    JOIN subjects sub ON a.subject_id = sub.subject_id
+    WHERE a.student_id = $1 AND a.subject_id = $2
+    ORDER BY a.date ASC;`
 
     rows, err := p.db.Query(q, studentID, subjectID)
     if err != nil {
@@ -656,13 +677,13 @@ func (p *PostgresRepo) GetStudentAttendanceHistory(studentID int64, subjectID in
     }
     defer rows.Close()
 
-    var list []domain.Attendance
+    var list []domain.StudentHistory
     for rows.Next() {
-        var a domain.Attendance
-        if err := rows.Scan(&a.ID, &a.StudentID, &a.SubjectID, &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
+        var h domain.StudentHistory
+        if err := rows.Scan(&h.ID, &h.Date, &h.Status, &h.SubjectID, &h.SubjectName, &h.RecordedAt); err != nil {
             return nil, err
         }
-        list = append(list, a)
+        list = append(list, h)
     }
     return list, nil
 }

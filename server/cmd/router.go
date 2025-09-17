@@ -25,7 +25,6 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 		log.Fatalf("Error Initializing the tables")
 	}
 
-	
 	studentService := student_service.NewStudentService(repo)
 	studentHandler := student_handler.NewStudentHandler(studentService)
 
