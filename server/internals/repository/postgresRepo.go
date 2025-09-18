@@ -158,6 +158,22 @@ func (p *PostgresRepo) StudentRegister(student domain.StudentRegisterPayload) (i
 	return id, nil
 }
 
+func (p *PostgresRepo) LoginStudent(usn, password string) (string, error) {
+	var pwHash string
+	var studentID int64
+	q := `SELECT student_id, password_hash FROM students WHERE usn = $1;`
+	if err := p.db.QueryRow(q, usn).Scan(&studentID, &pwHash); err != nil {
+		return "", fmt.Errorf("query student: %w", err)
+	}
+
+	if err := utils.ComparePassword(pwHash, password); err != nil {
+		return "", fmt.Errorf("invalid credentials: %w", err)
+	}
+
+	token := fmt.Sprintf("token-for-student-%d", studentID)
+	return token, nil
+}
+
 func (p *PostgresRepo) UpdateStudentInfo(studentID int, payload domain.StudentUpdatePayload) error {
 	query := `UPDATE students SET username = $2, department = $3, sem = $4 WHERE student_id = $1;`
 	if _, err := p.db.Exec(query, studentID, payload.Username, payload.Department, payload.Sem); err != nil {
@@ -299,20 +315,25 @@ func (p *PostgresRepo) CreateFaculty(req domain.FacultyRegisterPayload) (int64, 
 	return id, nil
 }
 
-func (p *PostgresRepo) AuthenticateFaculty(req domain.FacultyLoginPayload) (int64, error) {
+func (p *PostgresRepo) AuthenticateFaculty(req domain.FacultyLoginPayload) (string, error) {
 	var id int64
 	var pwHash string
 	q := `SELECT faculty_id, password_hash FROM faculty WHERE email = $1;`
 	if err := p.db.QueryRow(q, req.Email).Scan(&id, &pwHash); err != nil {
 		if err == sql.ErrNoRows {
-			return 0, fmt.Errorf("faculty not found")
+			return "", fmt.Errorf("faculty not found")
 		}
-		return 0, fmt.Errorf("query faculty: %w", err)
+		return "", fmt.Errorf("query faculty: %w", err)
 	}
 	if err := utils.ComparePassword(pwHash, req.Password); err != nil {
-		return 0, fmt.Errorf("invalid credentials")
+		return "", fmt.Errorf("invalid credentials")
 	}
-	return id, nil
+
+	token, err := utils.GenerateTokenForFaculty(id, req.Email)
+	if err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
+	return token, nil
 }
 
 // Get all faculty

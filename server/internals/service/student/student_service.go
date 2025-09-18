@@ -35,6 +35,23 @@ func (s *StudentService) RegisterStudent(req domain.StudentRegisterPayload) (int
 
 	return id, nil
 }
+func (s *StudentService) LoginStudent(usn, password string) (string, error) {
+	
+	if err := s.validate.Var(usn, "required"); err != nil {
+		return "", fmt.Errorf("validation error: %w", err)
+	}
+	if err := s.validate.Var(password, "required"); err != nil {
+		return "", fmt.Errorf("validation error: %w", err)
+	}
+
+	token, err := s.studentRepo.LoginStudent(usn, password)
+
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
 
 func (s *StudentService) UpdateStudentInfo(studentID int, payload domain.StudentUpdatePayload) error {
 

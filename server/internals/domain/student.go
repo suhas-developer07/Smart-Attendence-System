@@ -17,6 +17,11 @@ type StudentRegisterPayload struct {
 	Sem        int    `json:"sem"`
 }
 
+type StudentLoginPayload struct {
+	USN string `json:"usn" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
 type GetStudentsWithSubjectsPayload struct {
 	Department string `json:"department"`
 	Sem        int    `json:"sem"`
@@ -33,6 +38,7 @@ type StudentRepo interface {
 	UpdateStudentInfo(studentID int, payload StudentUpdatePayload) error
 	// GetStudentsByDeptAndSem(department string, sem int) ([]Student, error)
 	GetSubjectsByStudentID(studentID int64) ([]SubjectPayload, error)
+	LoginStudent(usn, password string) (string, error)
 }
 
 type Repository interface {

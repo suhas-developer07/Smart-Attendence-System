@@ -141,6 +141,31 @@ func (h *StudentHandler) UpdateStudentInfoHandler(c echo.Context) error {
 	})
 }
 
+func (h *StudentHandler) LoginStudentHandler(c echo.Context) error {
+	var req domain.StudentLoginPayload
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Invalid request payload: " + err.Error(),
+		})
+	}
+
+	// Authenticate student
+	token, err := h.StudentService.LoginStudent(req.USN, req.Password)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Authentication failed: " + err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Login successful",
+		Data:    map[string]string{"token": token},
+	})
+}
+
 // func (h *StudentHandler) GetStudentsByDeptAndSemHandler(c echo.Context) error {
 // 	department := c.QueryParam("department")
 // 	semStr := c.QueryParam("sem")
