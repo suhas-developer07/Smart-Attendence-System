@@ -68,10 +68,11 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	{
 		attendance.POST("", attendanceHandler.MarkAttendanceHandler)
 		attendance.GET("", attendanceHandler.GetAttendanceByStudentAndSubjectHandler)
-		attendance.GET("/subject", attendanceHandler.GetAttendanceBySubjectHandler)
-		attendance.GET("/summary/subject/:subject_id", attendanceHandler.GetAttendanceSummaryBySubjectHandler)
-		attendance.GET("/class", attendanceHandler.GetClassAttendanceHandler)
-		attendance.GET("/student/history", attendanceHandler.GetStudentAttendanceHistoryHandler)
+		attendance.GET("/subject", attendanceHandler.GetAttendanceBySubjectAndDateHandler)//payload:http://localhost:8080/attendance/subject?subject_id=1&date=2025-09-18
+		attendance.GET("/summary/subject/:subject_id", attendanceHandler.GetAttendanceSummaryBySubjectHandler)//http://localhost:8080/attendance/summary/subject/1
+		attendance.GET("/class", attendanceHandler.GetClassAttendanceHandler)//http://localhost:8080/attendance/class?subject_id=1&date=2025-09-18
+		attendance.GET("/student/history", attendanceHandler.GetStudentAttendanceHistoryHandler)//http://localhost:8080/attendance/student/history?usn=4AL23IS059&subject_id=1
+		attendance.POST("/assingnsubject",attendanceHandler.AssignSubjectToTimeRangeHandler)
 	}
 
 	// Health

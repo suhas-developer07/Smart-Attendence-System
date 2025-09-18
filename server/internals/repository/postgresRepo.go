@@ -42,7 +42,7 @@ func (p *PostgresRepo) InitTables() error {
 			created_at TIMESTAMPTZ DEFAULT now()
 		);`,
 
-		// 3. faculty api keys (admin issues keys to faculty for access)
+		// 3. faculty api keys
 		`CREATE TABLE IF NOT EXISTS faculty_api_keys (
 			key_id SERIAL PRIMARY KEY,
 			faculty_id INT NOT NULL,
@@ -85,19 +85,33 @@ func (p *PostgresRepo) InitTables() error {
 		);`,
 
 		// 7. attendance
-     	`CREATE TABLE IF NOT EXISTS attendance (
-			attendance_id SERIAL PRIMARY KEY,
-			student_id INT NOT NULL,
-			subject_id INT  NULL,
-			date DATE NOT NULL,
-			status VARCHAR(20) NOT NULL CHECK (status IN ('Present','Absent')),
-			recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			created_at TIMESTAMPTZ DEFAULT now(),
-			CONSTRAINT fk_attendance_student FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
-			CONSTRAINT fk_attendance_subject FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE,
-			UNIQUE(student_id, subject_id, date)
-);`,
+		`CREATE TABLE IF NOT EXISTS attendance (
+    attendance_id SERIAL PRIMARY KEY,
+    usn VARCHAR(50) NOT NULL,
+    subject_id INT NULL,
+    date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('Present', 'Absent')),
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT fk_attendance_student FOREIGN KEY (usn) REFERENCES students(usn) ON DELETE CASCADE,
+    CONSTRAINT fk_attendance_subject FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE SET NULL
+);
+`,
 
+		// 8. Attendance unique indexes for workflow
+		`CREATE UNIQUE INDEX IF NOT EXISTS uniq_usn_date_null_subject
+    ON attendance(usn, date)
+    WHERE subject_id IS NULL;`,
+
+		`CREATE UNIQUE INDEX IF NOT EXISTS uniq_usn_subject_date
+    ON attendance(usn, subject_id, date);`,
+
+		`CREATE INDEX IF NOT EXISTS idx_attendance_date_recorded
+    ON attendance(date, recorded_at);`,
+
+		`CREATE INDEX IF NOT EXISTS idx_attendance_subject_date
+    ON attendance(subject_id, date);`,
 	}
 
 	for _, q := range queries {
@@ -105,8 +119,10 @@ func (p *PostgresRepo) InitTables() error {
 			return fmt.Errorf("failed to exec init query: %w", err)
 		}
 	}
+
 	return nil
 }
+
 
 // ------------------------ Student & Subject Operations ------------------------
 
@@ -398,170 +414,102 @@ func (p *PostgresRepo) ValidateFacultyAPIKey(apiKey string) (int, error) {
 
 // ------------------------ Attendance ------------------------
 func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
-	var id int64
+	var attendanceID int64
 
-	// Convert RecordedAt to IST (Asia/Kolkata)
-	loc, _ := time.LoadLocation("Asia/Kolkata")
-	istTime := req.RecordedAt.In(loc)
+	// Attendance date only (UTC, truncate to date)
+	classDate := req.RecordedAt.UTC().Truncate(24 * time.Hour)
 
-	q := `INSERT INTO attendance (student_id, subject_id, date, status, recorded_at)
-	      VALUES ($1, $2, $3, $4, $5)
-	      ON CONFLICT (student_id, subject_id, date)
-	      DO UPDATE SET status = EXCLUDED.status, recorded_at = EXCLUDED.recorded_at
-	      RETURNING attendance_id;`
+	// Insert attendance without subject
+	query := `
+	INSERT INTO attendance (usn, subject_id, date, status, recorded_at)
+	VALUES ($1, NULL, $2, $3, $4)
+	ON CONFLICT (usn, date)
+	WHERE subject_id IS NULL
+	DO UPDATE SET status = EXCLUDED.status,
+	              recorded_at = EXCLUDED.recorded_at
+	RETURNING attendance_id;
+	`
 
-	err := p.db.QueryRow(
-		q,
-		req.StudentID,
-		req.SubjectID,
-		istTime.Format("2006-01-02"), // store IST date
-		req.Status,
-		istTime, // store IST timestamp
-	).Scan(&id)
-
+	err := p.db.QueryRow(query, req.USN, classDate, req.Status, req.RecordedAt.UTC()).Scan(&attendanceID)
 	if err != nil {
 		return 0, fmt.Errorf("mark attendance: %w", err)
 	}
-	return id, nil
-}
-func (p *PostgresRepo) GetAttendanceByStudentAndSubject(studentID, subjectID int64) ([]domain.AttendanceWithNames, error) {
-    q := `
-    SELECT a.attendance_id, a.student_id, st.username AS student_name, a.subject_id, sub.subject_name,
-           a.date, a.status, a.recorded_at, a.created_at
-    FROM attendance a
-    JOIN students st ON a.student_id = st.student_id
-    JOIN subjects sub ON a.subject_id = sub.subject_id
-    WHERE a.student_id = $1 AND a.subject_id = $2
-    ORDER BY a.date ASC;`
 
-    rows, err := p.db.Query(q, studentID, subjectID)
-    if err != nil {
-        return nil, fmt.Errorf("query attendance: %w", err)
-    }
-    defer rows.Close()
-
-    var list []domain.AttendanceWithNames
-    for rows.Next() {
-        var a domain.AttendanceWithNames
-        if err := rows.Scan(&a.ID, &a.StudentID, &a.StudentName, &a.SubjectID, &a.SubjectName,
-            &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
-            return nil, fmt.Errorf("scan attendance: %w", err)
-        }
-        list = append(list, a)
-    }
-    return list, rows.Err()
-}
-
-func (p *PostgresRepo) GetAttendanceBySubject(subjectID int64, fromDate, toDate time.Time) ([]domain.AttendanceWithNames, error) {  
-     q := `
-       SELECT a.attendance_id, a.student_id, st.username AS student_name,
-       a.subject_id, sub.subject_name,
-       a.date, a.status, a.recorded_at, a.created_at
-       FROM attendance a
-       JOIN students st ON a.student_id = st.student_id
-	   JOIN subjects sub ON a.subject_id = sub.subject_id
-	   WHERE a.subject_id = $1 AND a.date BETWEEN $2 AND $3
-       ORDER BY a.date ASC;`
-
-
-    rows, err := p.db.Query(q, subjectID, fromDate, toDate)
-    if err != nil {
-        return nil, fmt.Errorf("query attendance by subject: %w", err)
-    }
-    defer rows.Close()
-
-    var list []domain.AttendanceWithNames
-    for rows.Next() {
-        var a domain.AttendanceWithNames
-        if err := rows.Scan(&a.ID, &a.StudentID, &a.StudentName, &a.SubjectID, &a.SubjectName,
-            &a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
-            return nil, fmt.Errorf("scan attendance: %w", err)
-        }
-        list = append(list, a)
-    }
-    return list, rows.Err()
+	return attendanceID, nil
 }
 
 
-// AssignSubjectToTimeRange assigns subjectID to all attendance rows in the given time range
-// that currently have subject_id IS NULL. The caller must be the faculty that owns the subject.
-// Returns (numberUpdated, numberSkippedDueToExistingRecord, error).
-func (p *PostgresRepo) AssignSubjectToTimeRange(facultyID int, subjectID int64, start, end time.Time) (int64, int64, error) {
+func (p *PostgresRepo) AssignSubjectToTimeRange(
+	facultyID int,
+	subjectID int64,
+	classDate time.Time,
+	startTime, endTime time.Time,
+) (int64, int64, error) {
 	tx, err := p.db.Begin()
 	if err != nil {
 		return 0, 0, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// 1) Verify the subject belongs to the faculty (authorization)
+	// Verify faculty owns subject
 	var ownerID int
-	if err := tx.QueryRow(`SELECT faculty_id FROM subjects WHERE subject_id = $1 FOR UPDATE;`, subjectID).Scan(&ownerID); err != nil {
+	if err := tx.QueryRow(`SELECT faculty_id FROM subjects WHERE subject_id = $1`, subjectID).Scan(&ownerID); err != nil {
 		if err == sql.ErrNoRows {
-			return 0, 0, errors.New("subject not found")
+			return 0, 0, fmt.Errorf("subject not found")
 		}
 		return 0, 0, fmt.Errorf("query subject owner: %w", err)
 	}
 	if ownerID != facultyID {
-		return 0, 0, errors.New("not authorized to assign this subject")
+		return 0, 0, fmt.Errorf("not authorized to assign this subject")
 	}
 
-	// 2) Count candidate NULL-subject rows in the time range
-	var totalCandidates int64
-	if err := tx.QueryRow(
-		`SELECT COUNT(*) FROM attendance WHERE subject_id IS NULL AND recorded_at >= $1 AND recorded_at <= $2;`,
-		start, end,
-	).Scan(&totalCandidates); err != nil {
-		return 0, 0, fmt.Errorf("count candidates: %w", err)
-	}
+	// Build UTC timestamps for the given date + time range (IST -> UTC)
+	loc, _ := time.LoadLocation("Asia/Kolkata")
+	startDT := time.Date(classDate.Year(), classDate.Month(), classDate.Day(),
+		startTime.Hour(), startTime.Minute(), 0, 0, loc).UTC()
+	endDT := time.Date(classDate.Year(), classDate.Month(), classDate.Day(),
+		endTime.Hour(), endTime.Minute(), 59, 999999999, loc).UTC()
 
-	if totalCandidates == 0 {
-		// nothing to do
-		if err := tx.Commit(); err != nil {
-			return 0, 0, fmt.Errorf("commit tx: %w", err)
-		}
-		return 0, 0, nil
-	}
-
-	// 3) Update only those NULL rows for which there is NO existing attendance
-	//    row for (same student, same date, this subject). This prevents UNIQUE() conflicts.
-	//
-	// The CTE selects candidate attendance rows (NULL subject, in time range),
-	// then filters out candidates where a conflicting attendance already exists.
+	// Update attendance rows that have subject_id=NULL in the given time range
 	updateSQL := `
-	WITH candidates AS (
-	  SELECT a.attendance_id, a.student_id, a.date
-	  FROM attendance a
-	  WHERE a.subject_id IS NULL AND a.recorded_at >= $1 AND a.recorded_at <= $2
-	),
-	to_update AS (
-	  SELECT c.attendance_id
-	  FROM candidates c
-	  LEFT JOIN attendance existing
-	    ON existing.student_id = c.student_id
-	   AND existing.subject_id = $3
-	   AND existing.date = c.date
-	  WHERE existing.attendance_id IS NULL
-	)
-	UPDATE attendance
-	SET subject_id = $3
-	WHERE attendance_id IN (SELECT attendance_id FROM to_update)
+	UPDATE attendance a
+	SET subject_id = $1, updated_at = NOW()
+	WHERE a.subject_id IS NULL
+	  AND a.date = $2
+	  AND a.recorded_at BETWEEN $3 AND $4
+	  AND NOT EXISTS (
+	    SELECT 1 FROM attendance existing
+	    WHERE existing.usn = a.usn
+	      AND existing.subject_id = $1
+	      AND existing.date = a.date
+	  )
 	RETURNING attendance_id;
 	`
 
-	rows, err := tx.Query(updateSQL, start, end, subjectID)
+	rows, err := tx.Query(updateSQL, subjectID, classDate.Format("2006-01-02"), startDT, endDT)
 	if err != nil {
 		return 0, 0, fmt.Errorf("update attendance: %w", err)
 	}
+	defer rows.Close()
+
 	var updatedCount int64
 	for rows.Next() {
 		updatedCount++
 	}
-	rows.Close()
 	if err := rows.Err(); err != nil {
-		return 0, 0, fmt.Errorf("rows err: %w", err)
+		return 0, 0, fmt.Errorf("rows error: %w", err)
 	}
 
-	// 4) skipped = totalCandidates - updatedCount (these were left because of conflicts)
+	// Count skipped (attendance rows that were NULL but already had subject)
+	var totalCandidates int64
+	if err := tx.QueryRow(`
+		SELECT COUNT(*) FROM attendance
+		WHERE subject_id IS NULL
+		  AND date = $1
+		  AND recorded_at BETWEEN $2 AND $3
+	`, classDate.Format("2006-01-02"), startDT, endDT).Scan(&totalCandidates); err != nil {
+		return 0, 0, fmt.Errorf("count candidates: %w", err)
+	}
 	skipped := totalCandidates - updatedCount
 	if skipped < 0 {
 		skipped = 0
@@ -570,123 +518,192 @@ func (p *PostgresRepo) AssignSubjectToTimeRange(facultyID int, subjectID int64, 
 	if err := tx.Commit(); err != nil {
 		return 0, 0, fmt.Errorf("commit tx: %w", err)
 	}
+
 	return updatedCount, skipped, nil
 }
 
-// Get summary for one student across all subjects
-func (p *PostgresRepo) GetAttendanceSummaryByStudent(studentID int64) ([]domain.SubjectSummary, error) {
-    q := `
-    SELECT s.subject_id, subj.subject_name,
-           COUNT(*) AS total_classes,
-           SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS attended,
-           ROUND(100.0 * SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*), 2) AS percentage
-    FROM attendance a
-    JOIN subjects subj ON a.subject_id = subj.subject_id
-    JOIN student_subjects s ON s.subject_id = subj.subject_id AND s.student_id = a.student_id
-    WHERE a.student_id = $1 AND a.subject_id IS NOT NULL
-    GROUP BY s.subject_id, subj.subject_name;
-    `
+//working
+func (p *PostgresRepo) GetAttendanceByStudentAndSubject(usn string, subjectID int64) ([]domain.AttendanceWithNames, error) {
+	q := `
+	SELECT a.attendance_id, a.usn, st.username AS student_name,
+	       a.subject_id, sub.subject_name,
+	       a.date, a.status, a.recorded_at, a.created_at
+	FROM attendance a
+	JOIN students st ON a.usn = st.usn
+	LEFT JOIN subjects sub ON a.subject_id = sub.subject_id
+	WHERE a.usn = $1 AND a.subject_id = $2
+	ORDER BY a.date ASC;`
 
-    rows, err := p.db.Query(q, studentID)
-    if err != nil {
-        return nil, fmt.Errorf("get student summary: %w", err)
-    }
-    defer rows.Close()
+	rows, err := p.db.Query(q, usn, subjectID)
+	if err != nil {
+		return nil, fmt.Errorf("query attendance: %w", err)
+	}
+	defer rows.Close()
 
-    var list []domain.SubjectSummary
-    for rows.Next() {
-        var s domain.SubjectSummary
-        if err := rows.Scan(&s.SubjectID, &s.SubjectName, &s.TotalClasses, &s.Attended, &s.Percentage); err != nil {
-            return nil, err
-        }
-        list = append(list, s)
-    }
-    return list, nil
+	var list []domain.AttendanceWithNames
+	for rows.Next() {
+		var a domain.AttendanceWithNames
+		if err := rows.Scan(&a.ID, &a.USN, &a.StudentName, &a.SubjectID, &a.SubjectName,
+			&a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan attendance: %w", err)
+		}
+		list = append(list, a)
+	}
+	return list, rows.Err()
 }
 
-// Get summary for one subject across all students
+func (p *PostgresRepo) GetAttendanceBySubjectAndDate(subjectID int64, date time.Time) ([]domain.AttendanceWithNames, error) {
+	loc, _ := time.LoadLocation("Asia/Kolkata")
+	startDT := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc).UTC()
+	endDT := time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 59, 999999999, loc).UTC()
+
+	q := `
+	SELECT a.attendance_id, a.usn, st.username AS student_name,
+	       a.subject_id, sub.subject_name,
+	       a.date, a.status, a.recorded_at, a.created_at
+	FROM attendance a
+	JOIN students st ON a.usn = st.usn
+	LEFT JOIN subjects sub ON a.subject_id = sub.subject_id
+	WHERE a.subject_id = $1
+	  AND a.recorded_at BETWEEN $2 AND $3
+	ORDER BY a.recorded_at ASC;`
+
+	rows, err := p.db.Query(q, subjectID, startDT, endDT)
+	if err != nil {
+		return nil, fmt.Errorf("query attendance by subject and date: %w", err)
+	}
+	defer rows.Close()
+
+	var list []domain.AttendanceWithNames
+	for rows.Next() {
+		var a domain.AttendanceWithNames
+		if err := rows.Scan(&a.ID, &a.USN, &a.StudentName, &a.SubjectID, &a.SubjectName,
+			&a.Date, &a.Status, &a.RecordedAt, &a.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan attendance: %w", err)
+		}
+		list = append(list, a)
+	}
+	return list, rows.Err()
+}
+//need to write the service and handler for this
+func (p *PostgresRepo) GetAttendanceSummaryByStudent(usn string) ([]domain.SubjectSummary, error) {
+	q := `
+	SELECT subj.subject_id, subj.subject_name,
+	       COUNT(*) AS total_classes,
+	       SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS attended,
+	       ROUND(100.0 * SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*), 2) AS percentage
+	FROM attendance a
+	JOIN subjects subj ON a.subject_id = subj.subject_id
+	JOIN student_subjects s ON s.subject_id = subj.subject_id AND s.student_id = (
+	    SELECT student_id FROM students WHERE usn = a.usn
+	)
+	WHERE a.usn = $1 AND a.subject_id IS NOT NULL
+	GROUP BY subj.subject_id, subj.subject_name;`
+
+	rows, err := p.db.Query(q, usn)
+	if err != nil {
+		return nil, fmt.Errorf("get student summary: %w", err)
+	}
+	defer rows.Close()
+
+	var list []domain.SubjectSummary
+	for rows.Next() {
+		var s domain.SubjectSummary
+		if err := rows.Scan(&s.SubjectID, &s.SubjectName, &s.TotalClasses, &s.Attended, &s.Percentage); err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+	return list, nil
+}
+
+
 func (p *PostgresRepo) GetAttendanceSummaryBySubject(subjectID int64) ([]domain.StudentSummary, error) {
-    q := `
-    SELECT st.student_id, st.student_name,
-           COUNT(*) AS total_classes,
-           SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS attended,
-           ROUND(100.0 * SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*), 2) AS percentage
-    FROM attendance a
-    JOIN students st ON a.student_id = st.student_id
-    WHERE a.subject_id = $1
-    GROUP BY st.student_id, st.student_name;
-    `
+	q := `
+	SELECT a.usn, st.username AS student_name,
+	       COUNT(*) AS total_classes,
+	       SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) AS attended,
+	       ROUND(100.0 * SUM(CASE WHEN a.status = 'Present' THEN 1 ELSE 0 END) / COUNT(*), 2) AS percentage
+	FROM attendance a
+	JOIN students st ON a.usn = st.usn
+	WHERE a.subject_id = $1
+	GROUP BY a.usn, st.username
+	ORDER BY st.username;`
 
-    rows, err := p.db.Query(q, subjectID)
-    if err != nil {
-        return nil, fmt.Errorf("get subject summary: %w", err)
-    }
-    defer rows.Close()
+	rows, err := p.db.Query(q, subjectID)
+	if err != nil {
+		return nil, fmt.Errorf("get subject summary: %w", err)
+	}
+	defer rows.Close()
 
-    var list []domain.StudentSummary
-    for rows.Next() {
-        var s domain.StudentSummary
-        if err := rows.Scan(&s.StudentID, &s.StudentName, &s.TotalClasses, &s.Attended, &s.Percentage); err != nil {
-            return nil, err
-        }
-        list = append(list, s)
-    }
-    return list, nil
+	var list []domain.StudentSummary
+	for rows.Next() {
+		var s domain.StudentSummary
+		if err := rows.Scan(&s.USN, &s.StudentName, &s.TotalClasses, &s.Attended, &s.Percentage); err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+	return list, nil
 }
-
 
 func (p *PostgresRepo) GetClassAttendance(subjectID int64, date time.Time) ([]domain.ClassAttendance, error) {
-    q := `
-    SELECT st.student_id, st.student_name, a.date, a.status
-    FROM attendance a
-    JOIN students st ON a.student_id = st.student_id
-    WHERE a.subject_id = $1 AND a.date = $2
-    ORDER BY st.student_name;
-    `
+	loc, _ := time.LoadLocation("Asia/Kolkata")
+	startDT := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc).UTC()
+	endDT := time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 59, 999999999, loc).UTC()
 
-    rows, err := p.db.Query(q, subjectID, date)
-    if err != nil {
-        return nil, fmt.Errorf("get class attendance: %w", err)
-    }
-    defer rows.Close()
+	q := `
+	SELECT a.usn, st.username AS student_name, a.date, a.status
+	FROM attendance a
+	JOIN students st ON a.usn = st.usn
+	WHERE a.subject_id = $1
+	  AND a.recorded_at BETWEEN $2 AND $3
+	ORDER BY st.username;`
 
-    var list []domain.ClassAttendance
-    for rows.Next() {
-        var ca domain.ClassAttendance
-        if err := rows.Scan(&ca.StudentID, &ca.StudentName, &ca.Date, &ca.Status); err != nil {
-            return nil, err
-        }
-        list = append(list, ca)
-    }
-    return list, nil
+	rows, err := p.db.Query(q, subjectID, startDT, endDT)
+	if err != nil {
+		return nil, fmt.Errorf("get class attendance: %w", err)
+	}
+	defer rows.Close()
+
+	var list []domain.ClassAttendance
+	for rows.Next() {
+		var ca domain.ClassAttendance
+		if err := rows.Scan(&ca.USN, &ca.StudentName, &ca.Date, &ca.Status); err != nil {
+			return nil, err
+		}
+		list = append(list, ca)
+	}
+	return list, nil
 }
 
-func (p *PostgresRepo) GetStudentAttendanceHistory(studentID int64, subjectID int64) ([]domain.StudentHistory, error) {
-    q := `
-    SELECT a.attendance_id, a.date, a.status,
-           a.subject_id, sub.subject_name,
-           a.recorded_at
-    FROM attendance a
-    JOIN subjects sub ON a.subject_id = sub.subject_id
-    WHERE a.student_id = $1 AND a.subject_id = $2
-    ORDER BY a.date ASC;`
+func (p *PostgresRepo) GetStudentAttendanceHistory(usn string, subjectID int64) ([]domain.StudentHistory, error) {
+	q := `
+	SELECT a.attendance_id, a.date, a.status,
+	       a.subject_id, sub.subject_name,
+	       a.recorded_at
+	FROM attendance a
+	LEFT JOIN subjects sub ON a.subject_id = sub.subject_id
+	WHERE a.usn = $1 AND a.subject_id = $2
+	ORDER BY a.date ASC;`
 
-    rows, err := p.db.Query(q, studentID, subjectID)
-    if err != nil {
-        return nil, fmt.Errorf("get student history: %w", err)
-    }
-    defer rows.Close()
+	rows, err := p.db.Query(q, usn, subjectID)
+	if err != nil {
+		return nil, fmt.Errorf("get student history: %w", err)
+	}
+	defer rows.Close()
 
-    var list []domain.StudentHistory
-    for rows.Next() {
-        var h domain.StudentHistory
-        if err := rows.Scan(&h.ID, &h.Date, &h.Status, &h.SubjectID, &h.SubjectName, &h.RecordedAt); err != nil {
-            return nil, err
-        }
-        list = append(list, h)
-    }
-    return list, nil
+	var list []domain.StudentHistory
+	for rows.Next() {
+		var h domain.StudentHistory
+		if err := rows.Scan(&h.ID, &h.Date, &h.Status, &h.SubjectID, &h.SubjectName, &h.RecordedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, h)
+	}
+	return list, nil
 }
+
 
 func (p *PostgresRepo) ExportSubjectAttendanceCSV(subjectID int64, fromDate, toDate time.Time, filePath string) error {
     q := `
@@ -736,3 +753,61 @@ func (p *PostgresRepo) ExportSubjectAttendanceCSV(subjectID int64, fromDate, toD
 }
 
 
+
+func (p *PostgresRepo) DebugAttendanceRecords(classDate time.Time) error {
+    loc, _ := time.LoadLocation("Asia/Kolkata")
+    
+    startOfDay := time.Date(classDate.Year(), classDate.Month(), classDate.Day(), 
+        0, 0, 0, 0, loc)
+    endOfDay := time.Date(classDate.Year(), classDate.Month(), classDate.Day(), 
+        23, 59, 59, 0, loc)
+    
+    startUTC := startOfDay.UTC()
+    endUTC := endOfDay.UTC()
+
+    fmt.Printf("Debug: All attendance records for %s (IST: %s to %s)\n",
+        classDate.Format("2006-01-02"),
+        startOfDay.Format("2006-01-02 15:04:05"),
+        endOfDay.Format("2006-01-02 15:04:05"))
+    fmt.Printf("Corresponding UTC: %s to %s\n",
+        startUTC.Format("2006-01-02 15:04:05"),
+        endUTC.Format("2006-01-02 15:04:05"))
+
+    rows, err := p.db.Query(`
+        SELECT attendance_id, student_id, subject_id, date, status, 
+               recorded_at, recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as recorded_ist
+        FROM attendance 
+        WHERE date = $1
+        ORDER BY recorded_at`,
+        classDate.Format("2006-01-02"),
+    )
+    if err != nil {
+        return err
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var id, studentID int64
+        var subjectID sql.NullInt64
+        var date, status string
+        var recordedAt time.Time
+        var recordedIST time.Time
+        
+        err := rows.Scan(&id, &studentID, &subjectID, &date, &status, &recordedAt, &recordedIST)
+        if err != nil {
+            return err
+        }
+        
+        subjectStr := "NULL"
+        if subjectID.Valid {
+            subjectStr = fmt.Sprintf("%d", subjectID.Int64)
+        }
+        
+        fmt.Printf("ID: %d, Student: %d, Subject: %s, Date: %s, Status: %s, Recorded(UTC): %s, Recorded(IST): %s\n",
+            id, studentID, subjectStr, date, status, 
+            recordedAt.Format("2006-01-02 15:04:05"),
+            recordedIST.Format("2006-01-02 15:04:05"))
+    }
+    
+    return rows.Err()
+}

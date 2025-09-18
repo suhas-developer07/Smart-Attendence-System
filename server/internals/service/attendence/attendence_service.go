@@ -34,67 +34,64 @@ func (s *AttendanceService) MarkAttendance(attendance *domain.AttendancePayload)
 	
 }
 
-func (s *AttendanceService) GetAttendanceByStudentAndSubject(studentID int64, subjectID int64) ([]domain.AttendanceWithNames, error) {
-	if err := s.validate.Var(studentID, "required"); err != nil {
+func (s *AttendanceService) GetAttendanceByStudentAndSubject(usn string, subjectID int64) ([]domain.AttendanceWithNames, error) {
+	if err := s.validate.Var(usn, "required"); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
 	}
 	if err := s.validate.Var(subjectID, "required"); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
 	}
 
-	attendances, err := s.attendanceRepo.GetAttendanceByStudentAndSubject(studentID, subjectID)
+	attendances, err := s.attendanceRepo.GetAttendanceByStudentAndSubject(usn, subjectID)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching attendance: %w", err)
 	}
 	return attendances, nil
 }
-func (s *AttendanceService) GetAttendanceBySubject(subjectID int64, fromDate, toDate time.Time) ([]domain.AttendanceWithNames, error) {
+func (s *AttendanceService) GetAttendanceBySubjectAndDate(subjectID int64, date time.Time) ([]domain.AttendanceWithNames, error) {
 	// Validate subjectID
 	if subjectID == 0 {
 		return nil, fmt.Errorf("validation error: subject_id is required")
 	}
-
-	// Validate fromDate and toDate
-	if fromDate.IsZero() {
-		return nil, fmt.Errorf("validation error: from_date is required")
-	}
-	if toDate.IsZero() {
-		return nil, fmt.Errorf("validation error: to_date is required")
-	}
-	if fromDate.After(toDate) {
-		return nil, fmt.Errorf("validation error: from_date cannot be after to_date")
+	if date.IsZero() {
+		return nil, fmt.Errorf("validation error: date is required")
 	}
 
-	// Call repository
-	attendances, err := s.attendanceRepo.GetAttendanceBySubject(subjectID, fromDate, toDate)
+	attendances, err := s.attendanceRepo.GetAttendanceBySubjectAndDate(subjectID, date)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching attendance: %w", err)
 	}
-
 	return attendances, nil
 }
 
-func (s *AttendanceService) AssignSubjectToTimeRange(facultyID int, subjectID int64, start, end time.Time) (int64, int64, error) {
 
+func (s *AttendanceService) AssignSubjectToTimeRange(
+	facultyID int,
+	subjectID int64,
+	classDate time.Time, // only the date of class
+	start time.Time,     // class start time
+	end time.Time,       // class end time
+) (int64, int64, error) {
+
+	// Input validation
 	if err := s.validate.Var(facultyID, "required"); err != nil {
 		return 0, 0, fmt.Errorf("validation error: %w", err)
 	}
 	if err := s.validate.Var(subjectID, "required"); err != nil {
 		return 0, 0, fmt.Errorf("validation error: %w", err)
 	}
-	if err := s.validate.Var(start, "required,datetime=2006-01-02"); err != nil {
-		return 0, 0, fmt.Errorf("validation error: %w", err)
-	}
-	if err := s.validate.Var(end, "required,datetime=2006-01-02"); err != nil {
-		return 0, 0, fmt.Errorf("validation error: %w", err)
+	if classDate.IsZero() || start.IsZero() || end.IsZero() {
+		return 0, 0, fmt.Errorf("start, end, and class date are required")
 	}
 
-	updatedCount, skipped, err := s.attendanceRepo.AssignSubjectToTimeRange(facultyID, subjectID, start, end)
+	// Delegate to repository
+	updatedCount, skipped, err := s.attendanceRepo.AssignSubjectToTimeRange(facultyID, subjectID, classDate, start, end)
 	if err != nil {
 		return 0, 0, fmt.Errorf("error assigning subject to time range: %w", err)
 	}
 	return updatedCount, skipped, nil
 }
+
 
 func (s *AttendanceService) GetAttendanceSummaryBySubject(subjectID int64) ([]domain.StudentSummary, error) {
 
@@ -113,9 +110,6 @@ func (s *AttendanceService) GetClassAttendance(subjectID int64,date time.Time)([
 	if err := s.validate.Var(subjectID, "required"); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
 	}
-	if err := s.validate.Var(date, "required,datetime=2006-01-02"); err != nil {
-		return nil, fmt.Errorf("validation error: %w", err)
-	}
 
 	attendances, err := s.attendanceRepo.GetClassAttendance(subjectID,date)
 	if err != nil {
@@ -124,15 +118,15 @@ func (s *AttendanceService) GetClassAttendance(subjectID int64,date time.Time)([
 	return attendances, nil
 }
 
-func (s *AttendanceService) GetStudentAttendanceHistory(studentID int64, subjectID int64)([]domain.StudentHistory,error){
-	if err := s.validate.Var(studentID, "required"); err != nil {
+func (s *AttendanceService) GetStudentAttendanceHistory(usn string, subjectID int64)([]domain.StudentHistory,error){
+	if err := s.validate.Var(usn, "required"); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
 	}
 	if err := s.validate.Var(subjectID, "required"); err != nil {
 		return nil, fmt.Errorf("validation error: %w", err)
 	}
 
-	history, err := s.attendanceRepo.GetStudentAttendanceHistory(studentID,subjectID)
+	history, err := s.attendanceRepo.GetStudentAttendanceHistory(usn, subjectID)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching student attendance history: %w", err)
 	}

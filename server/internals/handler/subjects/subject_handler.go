@@ -81,7 +81,7 @@ func (h *SubjectHandler) GetSubjectsByDeptAndSemHandler(c echo.Context) error {
 }
 
 func (h *SubjectHandler) GetSubjectsByFacultyIDHandler(c echo.Context) error {
-	facultyIDParam := c.QueryParam("faculty_id")
+	facultyIDParam := c.Param("faculty_id")
 
 	if facultyIDParam == "" {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
@@ -114,7 +114,7 @@ func (h *SubjectHandler) GetSubjectsByFacultyIDHandler(c echo.Context) error {
 }
 
 func (h *SubjectHandler) GetSubjectsByStudentIDHandler(c echo.Context) error {
-	studentIDParam := c.QueryParam("student_id")
+	studentIDParam := c.Param("student_id")
 	
 	if studentIDParam == "" {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
