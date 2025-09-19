@@ -2,8 +2,6 @@ package faculty
 
 import (
 	"net/http"
-	"strconv"
-
 	"github.com/labstack/echo/v4"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
 	faculty_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/faculty"
@@ -55,7 +53,7 @@ func (h *FacultyHandler) AuthenticateFacultyHandler(c echo.Context) error {
 		})
 	}
 
-	facultyID, err := h.FacultyService.AuthenticateFaculty(req)
+	token, err := h.FacultyService.AuthenticateFaculty(req)
 
 	if err != nil {
 		return c.JSON(http.StatusUnauthorized, domain.ErrorResponse{
@@ -67,19 +65,11 @@ func (h *FacultyHandler) AuthenticateFacultyHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, domain.SuccessResponse{
 		Status:  "success",
 		Message: "Authentication successful",
-		Data:    map[string]int64{"faculty_id": facultyID},
+		Data:    map[string]string{"token": token},
 	})
 }
 func (h *FacultyHandler) GetFacultyByIDHandler(c echo.Context) error {
-	facultyIDParam := c.Param("id")
-
-	facultyID, err := strconv.Atoi(facultyIDParam)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-			Status: "error",
-			Error:  "Invalid faculty ID: " + err.Error(),
-		})
-	}
+	facultyID := c.Get("faculty_id").(int64)
 
 	faculty, err := h.FacultyService.GetFacultyByID(facultyID)
 	if err != nil {
@@ -113,7 +103,7 @@ func (h *FacultyHandler) GetAllFacultyHandler(c echo.Context) error {
 }
 
 func (h *FacultyHandler) GetFacultyByDepartmentHandler(c echo.Context) error {
-	department := c.Param("department")
+	department := c.Param("dept")
 	if department == "" {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",

@@ -39,7 +39,7 @@ func (s *SubjectService) GetSubjectsByDeptAndSem(department string, sem int) ([]
 	return subjects, nil
 }
 
-func (s *SubjectService) GetSubjectsByFacultyID(facultyID int) ([]domain.Subject, error){
+func (s *SubjectService) GetSubjectsByFacultyID(facultyID int64) ([]domain.Subject, error){
 
 	subjects,err := s.subjectRepo.GetSubjectsByFacultyID(facultyID)
 

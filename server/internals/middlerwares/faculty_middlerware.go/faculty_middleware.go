@@ -1,4 +1,4 @@
-package middlewares
+package facultymiddlerware
 
 import (
 	"net/http"
@@ -10,12 +10,14 @@ import (
 
 var jwtKey = []byte("KALI_LINUX")
 
-type Claims struct {
-	StudentID int64  `json:"student_id"`
-	USN       string `json:"usn"`
+type FacultyClaims struct {
+	FacultyID int64  `json:"faculty_id"`
+	Email     string `json:"email"`
 	jwt.RegisteredClaims
 }
-func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+
+
+func FacultyJWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// Get "Authorization" header
 		authHeader := c.Request().Header.Get("Authorization")
@@ -31,7 +33,7 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		tokenStr := parts[1]
 
-		claims := &Claims{}
+		claims := &FacultyClaims{}
 
 		// Parse token
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
@@ -43,8 +45,8 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		// Store claims in context
-		c.Set("student_id", claims.StudentID)
-		c.Set("usn", claims.USN)
+		c.Set("faculty_id", claims.FacultyID)
+		c.Set("email", claims.Email)
 
 		// Continue to next handler
 		return next(c)

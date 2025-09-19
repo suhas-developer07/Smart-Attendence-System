@@ -21,8 +21,8 @@ type FacultyLoginPayload struct {
 }
 
 type FacultyRepo interface {
-	GetFacultyByID(facultyID int) (Faculty, error)
+	GetFacultyByID(facultyID int64) (Faculty, error)
 	CreateFaculty(req FacultyRegisterPayload) (int64, error)
-	AuthenticateFaculty(req FacultyLoginPayload) (int64, error)
+	AuthenticateFaculty(req FacultyLoginPayload) (string, error)
 	GetAllFaculty() ([]Faculty, error)
 }

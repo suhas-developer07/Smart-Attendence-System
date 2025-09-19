@@ -13,6 +13,7 @@ type Student struct {
 type StudentRegisterPayload struct {
 	USN        string `json:"usn"`
 	Username   string `json:"username"`
+	Password   string `json:"password"`
 	Department string `json:"department"`
 	Sem        int    `json:"sem"`
 }

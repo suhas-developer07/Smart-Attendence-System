@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
-	"github.com/suhas-developer07/Smart-Attendence-System/server/pkg/utils"
+
 )
 
 type FacultyService struct {
@@ -26,14 +26,6 @@ func (s *FacultyService) RegisterFaculty(req domain.FacultyRegisterPayload) (int
 		return 0, fmt.Errorf("validation error: %w", err)
 	}
 
-	hashedPassword, err := utils.HashPassword(req.Password)
-
-	if err != nil {
-		return 0, fmt.Errorf("error while hashing password: %w", err)
-	}
-
-	req.Password = hashedPassword
-
 	id, err := s.facultyRepo.CreateFaculty(req)
 
 	if err != nil {
@@ -44,20 +36,20 @@ func (s *FacultyService) RegisterFaculty(req domain.FacultyRegisterPayload) (int
 }
 
 
-func (s *FacultyService) AuthenticateFaculty(req domain.FacultyLoginPayload) (int64, error) {
+func (s *FacultyService) AuthenticateFaculty(req domain.FacultyLoginPayload) (string, error) {
 	if err := s.validate.Struct(req); err != nil {
-		return 0, fmt.Errorf("validation error: %w", err)
+		return "", fmt.Errorf("validation error: %w", err)
 	}
 
-	facultyID, err := s.facultyRepo.AuthenticateFaculty(req)
+	token, err := s.facultyRepo.AuthenticateFaculty(req)
 	if err != nil {
-		return 0, fmt.Errorf("authentication failed: %w", err)
+		return "", fmt.Errorf("authentication failed: %w", err)
 	}
 
-	return facultyID, nil
+	return token, nil
 }
 
-func (s *FacultyService) GetFacultyByID(facultyID int) (domain.Faculty, error) {
+func (s *FacultyService) GetFacultyByID(facultyID int64) (domain.Faculty, error) {
 	faculty, err := s.facultyRepo.GetFacultyByID(facultyID)
 	if err != nil {
 		return domain.Faculty{}, err

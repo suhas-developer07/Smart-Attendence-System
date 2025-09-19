@@ -63,13 +63,13 @@ type StudentHistory struct {
 }
 
 type AttendanceRepository interface {
-	MarkAttendance(attendance *AttendancePayload) (int64, error)
-	GetAttendanceByStudentAndSubject(usn string, subjectID int64) ([]AttendanceWithNames, error)
-	GetAttendanceBySubjectAndDate(subjectID int64, date time.Time) ([]AttendanceWithNames, error)
-	AssignSubjectToTimeRange(facultyID int, subjectID int64, classDate time.Time, start time.Time, end time.Time) (int64, int64, error)
-	GetAttendanceSummaryBySubject(subjectID int64) ([]StudentSummary, error)
-	GetClassAttendance(subjectID int64, date time.Time) ([]ClassAttendance, error)
-	GetStudentAttendanceHistory(usn string, subjectID int64) ([]StudentHistory, error)
+	//MarkAttendance(attendance *AttendancePayload) (int64, error)
+    BulkMarkAttendance(attendances []AttendancePayload) (int, error)
+	GetAttendanceByStudentAndSubject(usn string, subjectCode string) ([]AttendanceWithNames, error)
+	GetAttendanceBySubjectAndDate(subjectCode string, date time.Time) ([]AttendanceWithNames, error)
+	AssignSubjectToTimeRange(facultyID int, subjectCode string, classDate time.Time, start time.Time, end time.Time) (int64, int64, error)
+	GetAttendanceSummaryBySubject(subjectCode string) ([]StudentSummary, error)
+	GetClassAttendance(subjectCode string, date time.Time) ([]ClassAttendance, error)
+	GetStudentAttendanceHistory(usn string, subjectCode string) ([]StudentHistory, error)
     GetAttendanceSummaryByStudent(usn string) ([]SubjectSummary, error)
-
 }

@@ -28,6 +28,6 @@ type Subject struct {
 type SubjectRepo interface {
 	AddSubject(subject SubjectPayload) (int64, error)
 	GetSubjectsByDeptAndSem(department string, sem int) ([]Subject, error)
-	GetSubjectsByFacultyID(facultyID int) ([]Subject, error)
+	GetSubjectsByFacultyID(facultyID int64) ([]Subject, error)
 	GetSubjectsByStudentID(studentID int64) ([]SubjectPayload, error)
 }

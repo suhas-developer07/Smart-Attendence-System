@@ -57,6 +57,7 @@ func (p *PostgresRepo) InitTables() error {
 			student_id SERIAL PRIMARY KEY,
 			usn VARCHAR(50) UNIQUE NOT NULL,
 			username VARCHAR(100) NOT NULL,
+			password_hash VARCHAR(256) NULL,
 			department VARCHAR(50) NOT NULL,
 			sem INT NOT NULL,
 			face_encoding BYTEA NULL,
@@ -135,10 +136,18 @@ func (p *PostgresRepo) StudentRegister(student domain.StudentRegisterPayload) (i
 
 	fmt.Println("Department:",student.Department)
 
+	var pwHash string
+	if student.Password != "" {
+		pwHash, err = utils.HashPassword(student.Password)
+		if err != nil {
+			return 0, fmt.Errorf("hash password: %w", err)
+		}
+	}
+
 	var id int64
-	query := `INSERT INTO students (usn, username, department, sem)
-	          VALUES ($1, $2, $3, $4) RETURNING student_id;`
-	err = tx.QueryRow(query, student.USN, student.Username, student.Department, student.Sem).Scan(&id)
+	query := `INSERT INTO students (usn, username, password_hash, department, sem)
+	          VALUES ($1, $2, $3, $4, $5) RETURNING student_id;`
+	err = tx.QueryRow(query, student.USN, student.Username, pwHash, student.Department, student.Sem).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert student: %w", err)
 	}
@@ -170,7 +179,10 @@ func (p *PostgresRepo) LoginStudent(usn, password string) (string, error) {
 		return "", fmt.Errorf("invalid credentials: %w", err)
 	}
 
-	token := fmt.Sprintf("token-for-student-%d", studentID)
+	token, err := utils.GenerateTokenForStudent(studentID, usn)
+	if err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
 	return token, nil
 }
 
@@ -276,7 +288,8 @@ func (p *PostgresRepo) GetSubjectsByStudentID(studentID int64) ([]domain.Subject
 	return out, nil
 }
 //subjects handled by faculty
-func (p *PostgresRepo) GetSubjectsByFacultyID(facultyID int) ([]domain.Subject, error) {
+func (p *PostgresRepo) GetSubjectsByFacultyID(facultyID int64) ([]domain.Subject, error) {
+	fmt.Println("DEBUG: facultyID in repo:", facultyID)
 	q := `SELECT s.subject_id, s.subject_code, s.subject_name, s.department, s.sem, f.faculty_name
 	      FROM subjects s JOIN faculty f ON s.faculty_id = f.faculty_id
 	      WHERE s.faculty_id = $1;`
@@ -301,39 +314,62 @@ func (p *PostgresRepo) GetSubjectsByFacultyID(facultyID int) ([]domain.Subject, 
 }
 
 // ------------------------ Faculty & Admin ------------------------
-
+// Register Faculty
 func (p *PostgresRepo) CreateFaculty(req domain.FacultyRegisterPayload) (int64, error) {
-	pwHash, err := utils.HashPassword(req.Password)
-	if err != nil {
-		return 0, fmt.Errorf("hash password: %w", err)
-	}
-	var id int64
-	q := `INSERT INTO faculty (faculty_name, email, password_hash, department) VALUES ($1, $2, $3, $4) RETURNING faculty_id;`
-	if err := p.db.QueryRow(q, req.Name, req.Email, pwHash, req.Department).Scan(&id); err != nil {
-		return 0, fmt.Errorf("insert faculty: %w", err)
-	}
-	return id, nil
+    // 1. Hash password
+    pwHash, err := utils.HashPassword(req.Password)
+    if err != nil {
+        return 0, fmt.Errorf("hash password: %w", err)
+    }
+
+    // 2. Insert into DB
+    var id int64
+    q := `
+        INSERT INTO faculty (faculty_name, email, password_hash, department)
+        VALUES ($1, $2, $3, $4)
+        RETURNING faculty_id;
+    `
+    if err := p.db.QueryRow(q, req.Name, req.Email, pwHash, req.Department).Scan(&id); err != nil {
+        return 0, fmt.Errorf("insert faculty: %w", err)
+    }
+
+    return id, nil
 }
 
+// Authenticate Faculty
 func (p *PostgresRepo) AuthenticateFaculty(req domain.FacultyLoginPayload) (string, error) {
-	var id int64
-	var pwHash string
-	q := `SELECT faculty_id, password_hash FROM faculty WHERE email = $1;`
-	if err := p.db.QueryRow(q, req.Email).Scan(&id, &pwHash); err != nil {
-		if err == sql.ErrNoRows {
-			return "", fmt.Errorf("faculty not found")
-		}
-		return "", fmt.Errorf("query faculty: %w", err)
-	}
-	if err := utils.ComparePassword(pwHash, req.Password); err != nil {
-		return "", fmt.Errorf("invalid credentials")
-	}
+    var id int64
+    var pwHash string
 
-	token, err := utils.GenerateTokenForFaculty(id, req.Email)
-	if err != nil {
-		return "", fmt.Errorf("generate token: %w", err)
-	}
-	return token, nil
+    // 1. Get faculty by email
+    q := `SELECT faculty_id, password_hash FROM faculty WHERE email = $1;`
+    if err := p.db.QueryRow(q, req.Email).Scan(&id, &pwHash); err != nil {
+        if err == sql.ErrNoRows {
+            return "", fmt.Errorf("faculty not found")
+        }
+        return "", fmt.Errorf("query faculty: %w", err)
+    }
+
+    // 2. Compare password
+    if err := utils.ComparePassword(pwHash, req.Password); err != nil {
+		fmt.Println("DEBUG: Stored hash:", pwHash)
+fmt.Println("DEBUG: Login password:", req.Password)
+
+if err := utils.ComparePassword(pwHash, req.Password); err != nil {
+    fmt.Println("DEBUG: Compare failed:", err)
+    return "", fmt.Errorf("invalid credentials")
+}
+
+        return "", fmt.Errorf("invalid credentials")
+    }
+
+    // 3. Generate JWT
+    token, err := utils.GenerateTokenForFaculty(id, req.Email)
+    if err != nil {
+        return "", fmt.Errorf("generate token: %w", err)
+    }
+
+    return token, nil
 }
 
 // Get all faculty
@@ -377,7 +413,7 @@ func (p *PostgresRepo) GetFacultyByDepartment(department string) ([]domain.Facul
     return facultyList, nil
 }
 
-func (p *PostgresRepo) GetFacultyByID(facultyID int) (domain.Faculty, error) {
+func (p *PostgresRepo) GetFacultyByID(facultyID int64) (domain.Faculty, error) {
 	var f domain.Faculty
 	q := `SELECT faculty_id, faculty_name, email, department, created_at FROM faculty WHERE faculty_id = $1;`
 	if err := p.db.QueryRow(q, facultyID).Scan(&f.ID, &f.Name, &f.Email, &f.Department, &f.CreatedAt); err != nil {
@@ -434,35 +470,76 @@ func (p *PostgresRepo) ValidateFacultyAPIKey(apiKey string) (int, error) {
 }
 
 // ------------------------ Attendance ------------------------
-func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
-	var attendanceID int64
+// func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
+// 	var attendanceID int64
 
-	// Attendance date only (UTC, truncate to date)
-	classDate := req.RecordedAt.UTC().Truncate(24 * time.Hour)
+// 	// Attendance date only (UTC, truncate to date)
+// 	classDate := req.RecordedAt.UTC().Truncate(24 * time.Hour)
 
-	// Insert attendance without subject
-	query := `
-	INSERT INTO attendance (usn, subject_id, date, status, recorded_at)
-	VALUES ($1, NULL, $2, $3, $4)
-	ON CONFLICT (usn, date)
-	WHERE subject_id IS NULL
-	DO UPDATE SET status = EXCLUDED.status,
-	              recorded_at = EXCLUDED.recorded_at
-	RETURNING attendance_id;
-	`
+// 	// Insert attendance without subject
+// 	query := `
+// 	INSERT INTO attendance (usn, subject_id, date, status, recorded_at)
+// 	VALUES ($1, NULL, $2, $3, $4)
+// 	ON CONFLICT (usn, date)
+// 	WHERE subject_id IS NULL
+// 	DO UPDATE SET status = EXCLUDED.status,
+// 	              recorded_at = EXCLUDED.recorded_at
+// 	RETURNING attendance_id;
+// 	`
 
-	err := p.db.QueryRow(query, req.USN, classDate, req.Status, req.RecordedAt.UTC()).Scan(&attendanceID)
-	if err != nil {
-		return 0, fmt.Errorf("mark attendance: %w", err)
-	}
+// 	err := p.db.QueryRow(query, req.USN, classDate, req.Status, req.RecordedAt.UTC()).Scan(&attendanceID)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("mark attendance: %w", err)
+// 	}
 
-	return attendanceID, nil
+// 	return attendanceID, nil
+// }
+
+func (p *PostgresRepo) BulkMarkAttendance(attendances []domain.AttendancePayload) (int, error) {
+    tx, err := p.db.Begin()
+    if err != nil {
+        return 0, fmt.Errorf("begin tx: %w", err)
+    }
+    defer tx.Rollback()
+
+    query := `
+    INSERT INTO attendance (usn, subject_id, date, status, recorded_at)
+    VALUES ($1, NULL, $2, $3, $4)
+    ON CONFLICT (usn, date)
+    WHERE subject_id IS NULL
+    DO UPDATE SET status = EXCLUDED.status,
+                  recorded_at = EXCLUDED.recorded_at
+    RETURNING attendance_id;
+    `
+
+    stmt, err := tx.Prepare(query)
+    if err != nil {
+        return 0, fmt.Errorf("prepare stmt: %w", err)
+    }
+    defer stmt.Close()
+
+    count := 0
+    for _, a := range attendances {
+        classDate := a.RecordedAt.UTC().Truncate(24 * time.Hour)
+
+        var id int64
+        if err := stmt.QueryRow(a.USN, classDate, a.Status, a.RecordedAt.UTC()).Scan(&id); err != nil {
+            return 0, fmt.Errorf("insert attendance (usn=%s): %w", a.USN, err)
+        }
+        count++
+    }
+
+    if err := tx.Commit(); err != nil {
+        return 0, fmt.Errorf("commit tx: %w", err)
+    }
+
+    return count, nil
 }
 
 
 func (p *PostgresRepo) AssignSubjectToTimeRange(
 	facultyID int,
-	subjectID int64,
+	subjectCode string,
 	classDate time.Time,
 	startTime, endTime time.Time,
 ) (int64, int64, error) {
@@ -472,14 +549,18 @@ func (p *PostgresRepo) AssignSubjectToTimeRange(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Verify faculty owns subject
+	// Lookup subject_id from subject_code
+	var subjectID int64
 	var ownerID int
-	if err := tx.QueryRow(`SELECT faculty_id FROM subjects WHERE subject_id = $1`, subjectID).Scan(&ownerID); err != nil {
+	err = tx.QueryRow(`SELECT subject_id, faculty_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID, &ownerID)
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return 0, 0, fmt.Errorf("subject not found")
 		}
-		return 0, 0, fmt.Errorf("query subject owner: %w", err)
+		return 0, 0, fmt.Errorf("query subject by code: %w", err)
 	}
+
+	// Verify faculty owns this subject
 	if ownerID != facultyID {
 		return 0, 0, fmt.Errorf("not authorized to assign this subject")
 	}
@@ -544,7 +625,17 @@ func (p *PostgresRepo) AssignSubjectToTimeRange(
 }
 
 //working
-func (p *PostgresRepo) GetAttendanceByStudentAndSubject(usn string, subjectID int64) ([]domain.AttendanceWithNames, error) {
+func (p *PostgresRepo) GetAttendanceByStudentAndSubject(usn string, subjectCode string) ([]domain.AttendanceWithNames, error) {
+	var subjectID int64
+	err := p.db.QueryRow(`SELECT subject_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("subject not found for code: %s", subjectCode)
+		}
+		return nil, fmt.Errorf("lookup subject_id: %w", err)
+	}
+
+	
 	q := `
 	SELECT a.attendance_id, a.usn, st.username AS student_name,
 	       a.subject_id, sub.subject_name,
@@ -573,7 +664,17 @@ func (p *PostgresRepo) GetAttendanceByStudentAndSubject(usn string, subjectID in
 	return list, rows.Err()
 }
 
-func (p *PostgresRepo) GetAttendanceBySubjectAndDate(subjectID int64, date time.Time) ([]domain.AttendanceWithNames, error) {
+func (p *PostgresRepo) GetAttendanceBySubjectAndDate(subjectCode string, date time.Time) ([]domain.AttendanceWithNames, error) {
+
+	var subjectID int64
+	err := p.db.QueryRow(`SELECT subject_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("subject not found for code: %s", subjectCode)
+		}
+		return nil, fmt.Errorf("lookup subject_id: %w", err)
+	}
+
 	loc, _ := time.LoadLocation("Asia/Kolkata")
 	startDT := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc).UTC()
 	endDT := time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 59, 999999999, loc).UTC()
@@ -639,7 +740,18 @@ func (p *PostgresRepo) GetAttendanceSummaryByStudent(usn string) ([]domain.Subje
 }
 
 
-func (p *PostgresRepo) GetAttendanceSummaryBySubject(subjectID int64) ([]domain.StudentSummary, error) {
+func (p *PostgresRepo) GetAttendanceSummaryBySubject(subjectCode string) ([]domain.StudentSummary, error) {
+	// First resolve subject_id from subject_code
+	var subjectID int64
+	err := p.db.QueryRow(`SELECT subject_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("subject not found for code: %s", subjectCode)
+		}
+		return nil, fmt.Errorf("lookup subject_id: %w", err)
+	}
+
+	// Now run the main query using subject_id
 	q := `
 	SELECT a.usn, st.username AS student_name,
 	       COUNT(*) AS total_classes,
@@ -668,7 +780,18 @@ func (p *PostgresRepo) GetAttendanceSummaryBySubject(subjectID int64) ([]domain.
 	return list, nil
 }
 
-func (p *PostgresRepo) GetClassAttendance(subjectID int64, date time.Time) ([]domain.ClassAttendance, error) {
+
+func (p *PostgresRepo) GetClassAttendance(subjectCode string, date time.Time) ([]domain.ClassAttendance, error) {
+
+	var subjectID int64
+	err := p.db.QueryRow(`SELECT subject_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("subject not found for code: %s", subjectCode)
+		}
+		return nil, fmt.Errorf("lookup subject_id: %w", err)
+	}
+
 	loc, _ := time.LoadLocation("Asia/Kolkata")
 	startDT := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc).UTC()
 	endDT := time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 59, 999999999, loc).UTC()
@@ -698,7 +821,17 @@ func (p *PostgresRepo) GetClassAttendance(subjectID int64, date time.Time) ([]do
 	return list, nil
 }
 
-func (p *PostgresRepo) GetStudentAttendanceHistory(usn string, subjectID int64) ([]domain.StudentHistory, error) {
+func (p *PostgresRepo) GetStudentAttendanceHistory(usn string, subjectCode string) ([]domain.StudentHistory, error) {
+var subjectID int64
+	err := p.db.QueryRow(`SELECT subject_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("subject not found for code: %s", subjectCode)
+		}
+		return nil, fmt.Errorf("lookup subject_id: %w", err)
+	}
+
+
 	q := `
 	SELECT a.attendance_id, a.date, a.status,
 	       a.subject_id, sub.subject_name,
@@ -772,7 +905,6 @@ func (p *PostgresRepo) ExportSubjectAttendanceCSV(subjectID int64, fromDate, toD
 
     return writer.Error()
 }
-
 
 
 func (p *PostgresRepo) DebugAttendanceRecords(classDate time.Time) error {

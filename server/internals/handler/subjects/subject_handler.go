@@ -9,7 +9,6 @@ import (
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/subject"
 )
 
-
 type SubjectHandler struct {
 	SubjectService *subject_service.SubjectService
 }
@@ -81,24 +80,17 @@ func (h *SubjectHandler) GetSubjectsByDeptAndSemHandler(c echo.Context) error {
 }
 
 func (h *SubjectHandler) GetSubjectsByFacultyIDHandler(c echo.Context) error {
-	facultyIDParam := c.Param("faculty_id")
+	facultyIDFromJWT,ok := c.Get("faculty_id").(int64)
 
-	if facultyIDParam == "" {
+	if !ok {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
 			Status: "error",
-			Error:  "faculty_id query parameter is required",
+			Error:  "facultyID is not getting from jwt",
 		})
 	}
 
-	facultyID, err := strconv.Atoi(facultyIDParam)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-			Status: "error",
-			Error:  "invalid faculty_id parameter",
-		})
-	}
 
-	subjects, err := h.SubjectService.GetSubjectsByFacultyID(facultyID)
+	subjects, err := h.SubjectService.GetSubjectsByFacultyID(facultyIDFromJWT)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
 			Status: "error",
@@ -114,24 +106,32 @@ func (h *SubjectHandler) GetSubjectsByFacultyIDHandler(c echo.Context) error {
 }
 
 func (h *SubjectHandler) GetSubjectsByStudentIDHandler(c echo.Context) error {
-	studentIDParam := c.Param("student_id")
+	// studentIDParam := c.Param("student_id")
 	
-	if studentIDParam == "" {
-		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+	studentIDFromJWT , ok := c.Get("student_id").(int64)
+
+	if !ok {
+		return c.JSON(http.StatusBadRequest,domain.ErrorResponse{
 			Status: "error",
-			Error:  "student_id query parameter is required",
+			Error: "student id is not geting",
 		})
 	}
+	// if studentIDParam == "" {
+	// 	return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+	// 		Status: "error",
+	// 		Error:  "student_id query parameter is required",
+	// 	})
+	// }
 
-	studentID, err := strconv.ParseInt(studentIDParam, 10, 64)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-			Status: "error",
-			Error:  "invalid student_id parameter",
-		})
-	}
+	// studentID, err := strconv.ParseInt(studentIDFromJWT, 10, 64)
+	// if err != nil {
+	// 	return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+	// 		Status: "error",
+	// 		Error:  "invalid student_id parameter",
+	// 	})
+	// }
 
-	subjects, err := h.SubjectService.GetSubjectsByStudentID(studentID)
+	subjects, err := h.SubjectService.GetSubjectsByStudentID(studentIDFromJWT)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
 			Status: "error",

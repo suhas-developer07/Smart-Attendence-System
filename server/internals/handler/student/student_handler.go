@@ -35,6 +35,7 @@ func (h *StudentHandler) StudentRegisterHandler(c echo.Context) error {
 	req := domain.StudentRegisterPayload{
 		USN:      c.FormValue("usn"),
 		Username: c.FormValue("username"),
+		Password: c.FormValue("password"),
 		Department:   c.FormValue("department"),
 		Sem:      sem,
 	}

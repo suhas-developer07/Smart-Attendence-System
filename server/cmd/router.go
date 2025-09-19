@@ -11,6 +11,9 @@ import (
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/faculty"
 	student_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/student"
 	subject_handler "github.com/suhas-developer07/Smart-Attendence-System/server/internals/handler/subjects"
+	facultymiddlerware "github.com/suhas-developer07/Smart-Attendence-System/server/internals/middlerwares/faculty_middlerware.go"
+	//facultymiddlerware "github.com/suhas-developer07/Smart-Attendence-System/server/internals/middlerwares/faculty_middlerware.go"
+	studentmiddlerwarego "github.com/suhas-developer07/Smart-Attendence-System/server/internals/middlerwares/student_middlerware.go"
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/repository"
 
 	attendence_service "github.com/suhas-developer07/Smart-Attendence-System/server/internals/service/attendence"
@@ -41,38 +44,43 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	//  Student 
 	student := e.Group("/students")
 	{
-		student.POST("", studentHandler.StudentRegisterHandler)       
+		student.POST("/register", studentHandler.StudentRegisterHandler)
+		student.POST("/login", studentHandler.LoginStudentHandler)       
 		student.PUT("/:student_id", studentHandler.UpdateStudentInfoHandler) 
 		//student.GET("/:student_id", studentHandler.GetStudentByIDHandler)    
-		student.GET("/:student_id/subjects", subjectHandler.GetSubjectsByStudentIDHandler) 
+		student.GET("/subjects", subjectHandler.GetSubjectsByStudentIDHandler, studentmiddlerwarego.JWTMiddleware) 
 
 	//  Subject 
 	subject := e.Group("/subjects")
 	{
+		//all routes are working fine
 		subject.POST("", subjectHandler.AddSubjectHandler)                        
-		subject.GET("", subjectHandler.GetSubjectsByDeptAndSemHandler)            
-		subject.GET("/faculty/:faculty_id", subjectHandler.GetSubjectsByFacultyIDHandler) 
+		subject.GET("",subjectHandler.GetSubjectsByDeptAndSemHandler)            
+		subject.GET("/faculty", subjectHandler.GetSubjectsByFacultyIDHandler,facultymiddlerware.FacultyJWTMiddleware) 
 	}
 
 	// Faculty
 	faculty := e.Group("/faculty")
 	{
+		//all routes are working fine
 		faculty.POST("/register", facultyHandler.RegisterFacultyHandler) 
 		faculty.POST("/login", facultyHandler.AuthenticateFacultyHandler) 
-		faculty.GET("/:faculty_id", facultyHandler.GetFacultyByIDHandler) 
+		faculty.GET("/getfaculty", facultyHandler.GetFacultyByIDHandler,facultymiddlerware.FacultyJWTMiddleware) 
 		faculty.GET("", facultyHandler.GetAllFacultyHandler)              
 		faculty.GET("/department/:dept", facultyHandler.GetFacultyByDepartmentHandler) 
 	}
 
 	attendance := e.Group("/attendance")
 	{
-		attendance.POST("", attendanceHandler.MarkAttendanceHandler)
-		attendance.GET("", attendanceHandler.GetAttendanceByStudentAndSubjectHandler)
+		//attendance.POST("", attendanceHandler.MarkAttendanceHandler)
+		attendance.POST("/bulk", attendanceHandler.BulkAttendanceHandler,)//payload:http://localhost:8080/attendance/bulk
+		attendance.GET("", attendanceHandler.GetAttendanceByStudentAndSubjectHandler,studentmiddlerwarego.JWTMiddleware)//http://localhost:8080/attendance?usn=4AL23IS059&subjectCode=1
 		attendance.GET("/subject", attendanceHandler.GetAttendanceBySubjectAndDateHandler)//payload:http://localhost:8080/attendance/subject?subject_id=1&date=2025-09-18
-		attendance.GET("/summary/subject/:subject_id", attendanceHandler.GetAttendanceSummaryBySubjectHandler)//http://localhost:8080/attendance/summary/subject/1
+		attendance.GET("/summary/subject/:subjectCode", attendanceHandler.GetAttendanceSummaryBySubjectHandler)//http://localhost:8080/attendance/summary/subject/1
 		attendance.GET("/class", attendanceHandler.GetClassAttendanceHandler)//http://localhost:8080/attendance/class?subject_id=1&date=2025-09-18
-		attendance.GET("/student/history", attendanceHandler.GetStudentAttendanceHistoryHandler)//http://localhost:8080/attendance/student/history?usn=4AL23IS059&subject_id=1
+		attendance.GET("/student/history", attendanceHandler.GetStudentAttendanceHistoryHandler,studentmiddlerwarego.JWTMiddleware)//http://localhost:8080/attendance/student/history?usn=4AL23IS059&subject_id=1
 		attendance.POST("/assingnsubject",attendanceHandler.AssignSubjectToTimeRangeHandler)
+		attendance.GET("/summary/student", attendanceHandler.GetAttendanceSummaryByStudentHandler,studentmiddlerwarego.JWTMiddleware)//http://localhost:8080/attendance/summary/student/4AL23IS059
 	}
 
 	// Health
