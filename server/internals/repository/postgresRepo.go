@@ -470,30 +470,30 @@ func (p *PostgresRepo) ValidateFacultyAPIKey(apiKey string) (int, error) {
 }
 
 // ------------------------ Attendance ------------------------
-// func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
-// 	var attendanceID int64
+func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
+	var attendanceID int64
 
-// 	// Attendance date only (UTC, truncate to date)
-// 	classDate := req.RecordedAt.UTC().Truncate(24 * time.Hour)
+	// Attendance date only (UTC, truncate to date)
+	classDate := req.RecordedAt.UTC().Truncate(24 * time.Hour)
 
-// 	// Insert attendance without subject
-// 	query := `
-// 	INSERT INTO attendance (usn, subject_id, date, status, recorded_at)
-// 	VALUES ($1, NULL, $2, $3, $4)
-// 	ON CONFLICT (usn, date)
-// 	WHERE subject_id IS NULL
-// 	DO UPDATE SET status = EXCLUDED.status,
-// 	              recorded_at = EXCLUDED.recorded_at
-// 	RETURNING attendance_id;
-// 	`
+	// Insert attendance without subject
+	query := `
+	INSERT INTO attendance (usn, subject_id, date, status, recorded_at)
+	VALUES ($1, NULL, $2, $3, $4)
+	ON CONFLICT (usn, date)
+	WHERE subject_id IS NULL
+	DO UPDATE SET status = EXCLUDED.status,
+	              recorded_at = EXCLUDED.recorded_at
+	RETURNING attendance_id;
+	`
 
-// 	err := p.db.QueryRow(query, req.USN, classDate, req.Status, req.RecordedAt.UTC()).Scan(&attendanceID)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("mark attendance: %w", err)
-// 	}
+	err := p.db.QueryRow(query, req.USN, classDate, req.Status, req.RecordedAt.UTC()).Scan(&attendanceID)
+	if err != nil {
+		return 0, fmt.Errorf("mark attendance: %w", err)
+	}
 
-// 	return attendanceID, nil
-// }
+	return attendanceID, nil
+}
 
 func (p *PostgresRepo) BulkMarkAttendance(attendances []domain.AttendancePayload) (int, error) {
     tx, err := p.db.Begin()
@@ -538,7 +538,7 @@ func (p *PostgresRepo) BulkMarkAttendance(attendances []domain.AttendancePayload
 
 
 func (p *PostgresRepo) AssignSubjectToTimeRange(
-	facultyID int,
+	facultyID int64,
 	subjectCode string,
 	classDate time.Time,
 	startTime, endTime time.Time,
@@ -551,7 +551,7 @@ func (p *PostgresRepo) AssignSubjectToTimeRange(
 
 	// Lookup subject_id from subject_code
 	var subjectID int64
-	var ownerID int
+	var ownerID int64
 	err = tx.QueryRow(`SELECT subject_id, faculty_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID, &ownerID)
 	if err != nil {
 		if err == sql.ErrNoRows {

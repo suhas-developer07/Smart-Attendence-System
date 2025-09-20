@@ -46,7 +46,7 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	{
 		student.POST("/register", studentHandler.StudentRegisterHandler)
 		student.POST("/login", studentHandler.LoginStudentHandler)       
-		student.PUT("/:student_id", studentHandler.UpdateStudentInfoHandler) 
+		//student.PUT("/:student_id", studentHandler.UpdateStudentInfoHandler) 
 		//student.GET("/:student_id", studentHandler.GetStudentByIDHandler)    
 		student.GET("/subjects", subjectHandler.GetSubjectsByStudentIDHandler, studentmiddlerwarego.JWTMiddleware) 
 
@@ -72,14 +72,14 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 
 	attendance := e.Group("/attendance")
 	{
-		//attendance.POST("", attendanceHandler.MarkAttendanceHandler)
+		attendance.POST("", attendanceHandler.MarkAttendanceHandler)
 		attendance.POST("/bulk", attendanceHandler.BulkAttendanceHandler,)//payload:http://localhost:8080/attendance/bulk
 		attendance.GET("", attendanceHandler.GetAttendanceByStudentAndSubjectHandler,studentmiddlerwarego.JWTMiddleware)//http://localhost:8080/attendance?usn=4AL23IS059&subjectCode=1
 		attendance.GET("/subject", attendanceHandler.GetAttendanceBySubjectAndDateHandler)//payload:http://localhost:8080/attendance/subject?subject_id=1&date=2025-09-18
-		attendance.GET("/summary/subject/:subjectCode", attendanceHandler.GetAttendanceSummaryBySubjectHandler)//http://localhost:8080/attendance/summary/subject/1
+		attendance.GET("/summary/subject", attendanceHandler.GetAttendanceSummaryBySubjectHandler)//http://localhost:8080/attendance/summary/subject/1
 		attendance.GET("/class", attendanceHandler.GetClassAttendanceHandler)//http://localhost:8080/attendance/class?subject_id=1&date=2025-09-18
 		attendance.GET("/student/history", attendanceHandler.GetStudentAttendanceHistoryHandler,studentmiddlerwarego.JWTMiddleware)//http://localhost:8080/attendance/student/history?usn=4AL23IS059&subject_id=1
-		attendance.POST("/assingnsubject",attendanceHandler.AssignSubjectToTimeRangeHandler)
+		attendance.POST("/assignsubject",attendanceHandler.AssignSubjectToTimeRangeHandler,facultymiddlerware.FacultyJWTMiddleware)
 		attendance.GET("/summary/student", attendanceHandler.GetAttendanceSummaryByStudentHandler,studentmiddlerwarego.JWTMiddleware)//http://localhost:8080/attendance/summary/student/4AL23IS059
 	}
 
@@ -89,3 +89,11 @@ func SetupRoutes(e *echo.Echo, db *sql.DB) {
 	})
 }
 }
+
+
+// {
+//   "usn": "4AL23IS059",
+//   "status": "Present",
+// "recorded_at": "2025-09-18T03:45:00+00:00"
+// }
+// 9:00 to 9:50

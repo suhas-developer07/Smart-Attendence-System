@@ -21,17 +21,17 @@ func NewAttendanceService(attendanceRepo domain.AttendanceRepository) *Attendanc
 	}
 }
 
-// func (s *AttendanceService) MarkAttendance(attendance *domain.AttendancePayload) (int64, error) {
-// 	if err := s.validate.Struct(attendance); err != nil {
-//     fmt.Printf("%#v\n", attendance) // inspect actual struct & values
-// }
+func (s *AttendanceService) MarkAttendance(attendance *domain.AttendancePayload) (int64, error) {
+	if err := s.validate.Struct(attendance); err != nil {
+    fmt.Printf("%#v\n", attendance) // inspect actual struct & values
+}
 
-// 	id, err := s.attendanceRepo.MarkAttendance(attendance)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("error marking attendance: %w", err)
-// 	}
-// 	return id, nil
-// }
+	id, err := s.attendanceRepo.MarkAttendance(attendance)
+	if err != nil {
+		return 0, fmt.Errorf("error marking attendance: %w", err)
+	}
+	return id, nil
+}
 
 func (s *AttendanceService) BulkMarkAttendance(attendances []domain.AttendancePayload) (int, error) {
     // Validate each attendance
@@ -78,7 +78,7 @@ func (s *AttendanceService) GetAttendanceBySubjectAndDate(subjectCode string, da
 
 
 func (s *AttendanceService) AssignSubjectToTimeRange(
-	facultyID int,
+	facultyID int64,
 	subjectCode string,
 	classDate time.Time, // only the date of class
 	start time.Time,     // class start time

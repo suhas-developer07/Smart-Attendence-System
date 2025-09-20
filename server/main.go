@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	 "github.com/labstack/echo/v4/middleware"
+
 
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
@@ -32,10 +34,33 @@ func main() {
 
 	defer Database.Close()
 
+	
 
+e := echo.New()
 
-	e := echo.New()
-	cmd.SetupRoutes(e, Database)
+// Enable CORS for all requests
+e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+    AllowOrigins: []string{"*"}, // allow all origins
+    AllowMethods: []string{
+        echo.GET,
+        echo.POST,
+        echo.PUT,
+        echo.DELETE,
+        echo.PATCH,
+        echo.OPTIONS,
+    },
+    AllowHeaders: []string{
+        echo.HeaderOrigin,
+        echo.HeaderContentType,
+        echo.HeaderAccept,
+        echo.HeaderAuthorization,
+    },
+}))
+
+cmd.SetupRoutes(e, Database)
+
+e.Logger.Fatal(e.Start(":8080"))
+
 
 	e.Logger.Fatal(e.Start(":8080"))
 }

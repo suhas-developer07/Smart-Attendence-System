@@ -20,30 +20,30 @@ func NewAttendanceHandler(ar *attendence_service.AttendanceService) *AttendanceH
 	}
 }
 
-// func (h *AttendanceHandler) MarkAttendanceHandler(c echo.Context) error {
-// 	var req domain.AttendancePayload
+func (h *AttendanceHandler) MarkAttendanceHandler(c echo.Context) error {
+	var req domain.AttendancePayload
 
-// 	if err := c.Bind(&req); err != nil {
-// 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
-// 			Status: "error",
-// 			Error:  "invalid request payload" + err.Error(),
-// 		})
-// 	}
-// 	id, err := h.AttendanceService.MarkAttendance(&req)
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
+			Status: "error",
+			Error:  "invalid request payload" + err.Error(),
+		})
+	}
+	id, err := h.AttendanceService.MarkAttendance(&req)
 
-// 	if err != nil {
-// 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
-// 			Status: "error",
-// 			Error:  "Failed to mark attendance" + err.Error(),
-// 		})
-// 	}
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
+			Status: "error",
+			Error:  "Failed to mark attendance" + err.Error(),
+		})
+	}
 
-// 	return c.JSON(http.StatusOK, domain.SuccessResponse{
-// 		Status:  "success",
-// 		Message: "Attendance marked successfully",
-// 		Data:    map[string]int64{"attendance_id": id},
-// 	})
-// }
+	return c.JSON(http.StatusOK, domain.SuccessResponse{
+		Status:  "success",
+		Message: "Attendance marked successfully",
+		Data:    map[string]int64{"attendance_id": id},
+	})
+}
 
 
 func (h *AttendanceHandler) BulkAttendanceHandler(c echo.Context) error {
@@ -139,12 +139,13 @@ func (h *AttendanceHandler) GetAttendanceBySubjectAndDateHandler(c echo.Context)
 }
 func (h *AttendanceHandler) AssignSubjectToTimeRangeHandler(c echo.Context) error {
 	var req struct {
-		FacultyID int    `json:"faculty_id"`
 		SubjectCode string  `json:"subjectCode"`
 		ClassDate string `json:"class_date"` // YYYY-MM-DD
 		Start     string `json:"start"`      // HH:MM
 		End       string `json:"end"`        // HH:MM
 	}
+	
+	var FacultyID = c.Get("faculty_id").(int64)
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
@@ -158,7 +159,7 @@ func (h *AttendanceHandler) AssignSubjectToTimeRangeHandler(c echo.Context) erro
 	endTime, _ := time.Parse("15:04", req.End)
 
 	updated, skipped, err := h.AttendanceService.AssignSubjectToTimeRange(
-		req.FacultyID, req.SubjectCode, classDate, startTime, endTime,
+		FacultyID, req.SubjectCode, classDate, startTime, endTime,
 	)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, domain.ErrorResponse{
@@ -175,7 +176,7 @@ func (h *AttendanceHandler) AssignSubjectToTimeRangeHandler(c echo.Context) erro
 
 //This function returns attendance summary of a subject means whole attendence of all students in that subject 
 func (h *AttendanceHandler) GetAttendanceSummaryBySubjectHandler(c echo.Context) error {
-	var subjectCode = c.Param("subjectCode")
+	var subjectCode = c.QueryParam("subjectCode")
 
 	if subjectCode == "" {
 		return c.JSON(http.StatusBadRequest, domain.ErrorResponse{
