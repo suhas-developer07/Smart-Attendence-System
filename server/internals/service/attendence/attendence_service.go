@@ -23,7 +23,7 @@ func NewAttendanceService(attendanceRepo domain.AttendanceRepository) *Attendanc
 
 func (s *AttendanceService) MarkAttendance(attendance *domain.AttendancePayload) (int64, error) {
 	if err := s.validate.Struct(attendance); err != nil {
-    fmt.Printf("%#v\n", attendance) // inspect actual struct & values
+    fmt.Printf("%#v\n", attendance) 
 }
 
 	id, err := s.attendanceRepo.MarkAttendance(attendance)
@@ -61,7 +61,7 @@ func (s *AttendanceService) GetAttendanceByStudentAndSubject(usn string, subject
 	return attendances, nil
 }
 func (s *AttendanceService) GetAttendanceBySubjectAndDate(subjectCode string, date time.Time) ([]domain.AttendanceWithNames, error) {
-	// Validate subjectID
+
 	if subjectCode == "" {
 		return nil, fmt.Errorf("validation error: subject_id is required")
 	}
@@ -85,7 +85,7 @@ func (s *AttendanceService) AssignSubjectToTimeRange(
 	end time.Time,       // class end time
 ) (int64, int64, error) {
 
-	// Input validation
+
 	if err := s.validate.Var(facultyID, "required"); err != nil {
 		return 0, 0, fmt.Errorf("validation error: %w", err)
 	}
@@ -96,7 +96,6 @@ func (s *AttendanceService) AssignSubjectToTimeRange(
 		return 0, 0, fmt.Errorf("start, end, and class date are required")
 	}
 
-	// Delegate to repository
 	updatedCount, skipped, err := s.attendanceRepo.AssignSubjectToTimeRange(facultyID, subjectCode, classDate, start, end)
 	if err != nil {
 		return 0, 0, fmt.Errorf("error assigning subject to time range: %w", err)

@@ -18,13 +18,12 @@ type Claims struct {
 }
 func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		// Get "Authorization" header
+		
 		authHeader := c.Request().Header.Get("Authorization")
 		if authHeader == "" {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Missing Authorization header"})
 		}
 
-		// Split "Bearer <token>"
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token format"})
@@ -34,7 +33,6 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		claims := &Claims{}
 
-		// Parse token
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 			return jwtKey, nil
 		})
@@ -45,11 +43,9 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		fmt.Println("Authenticated Student ID:", claims.StudentID)
 
-		// Store claims in context
 		c.Set("student_id", claims.StudentID)
 		c.Set("usn", claims.USN)
 
-		// Continue to next handler
 		return next(c)
 	}
 }

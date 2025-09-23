@@ -2,10 +2,7 @@ package repository
 
 import (
 	"database/sql"
-	"encoding/csv"
-	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/suhas-developer07/Smart-Attendence-System/server/internals/domain"
@@ -23,16 +20,7 @@ func NewPostgresRepo(db *sql.DB) *PostgresRepo {
 // InitTables creates tables in an order that satisfies FK constraints.
 func (p *PostgresRepo) InitTables() error {
 	queries := []string{
-		// 1. admins
-		`CREATE TABLE IF NOT EXISTS admins (
-			admin_id SERIAL PRIMARY KEY,
-			username VARCHAR(100) NOT NULL UNIQUE,
-			email VARCHAR(100) UNIQUE NOT NULL,
-			password_hash VARCHAR(256) NOT NULL,
-			created_at TIMESTAMPTZ DEFAULT now()
-		);`,
 
-		// 2. faculty
 		`CREATE TABLE IF NOT EXISTS faculty (
 			faculty_id SERIAL PRIMARY KEY,
 			faculty_name VARCHAR(100) NOT NULL,
@@ -42,17 +30,6 @@ func (p *PostgresRepo) InitTables() error {
 			created_at TIMESTAMPTZ DEFAULT now()
 		);`,
 
-		// 3. faculty api keys
-		`CREATE TABLE IF NOT EXISTS faculty_api_keys (
-			key_id SERIAL PRIMARY KEY,
-			faculty_id INT NOT NULL,
-			api_key VARCHAR(256) NOT NULL UNIQUE,
-			created_at TIMESTAMPTZ DEFAULT now(),
-			expires_at TIMESTAMPTZ NULL,
-			CONSTRAINT fk_faculty_key FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id) ON DELETE CASCADE
-		);`,
-
-		// 4. students
 		`CREATE TABLE IF NOT EXISTS students (
 			student_id SERIAL PRIMARY KEY,
 			usn VARCHAR(50) UNIQUE NOT NULL,
@@ -65,7 +42,7 @@ func (p *PostgresRepo) InitTables() error {
 			created_at TIMESTAMPTZ DEFAULT now()
 		);`,
 
-		// 5. subjects
+
 		`CREATE TABLE IF NOT EXISTS subjects (
 			subject_id SERIAL PRIMARY KEY,
 			subject_code VARCHAR(50) UNIQUE NOT NULL,
@@ -76,7 +53,6 @@ func (p *PostgresRepo) InitTables() error {
 			CONSTRAINT fk_faculty_sub FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id) ON DELETE RESTRICT
 		);`,
 
-		// 6. student_subjects mapping
 		`CREATE TABLE IF NOT EXISTS student_subjects (
 			student_id INT NOT NULL,
 			subject_id INT NOT NULL,
@@ -85,19 +61,18 @@ func (p *PostgresRepo) InitTables() error {
 			CONSTRAINT fk_subject_sub FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE CASCADE
 		);`,
 
-		// 7. attendance
 		`CREATE TABLE IF NOT EXISTS attendance (
-    attendance_id SERIAL PRIMARY KEY,
-    usn VARCHAR(50) NOT NULL,
-    subject_id INT NULL,
-    date DATE NOT NULL,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('Present', 'Absent')),
-    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    CONSTRAINT fk_attendance_student FOREIGN KEY (usn) REFERENCES students(usn) ON DELETE CASCADE,
-    CONSTRAINT fk_attendance_subject FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE SET NULL
-);
+            attendance_id SERIAL PRIMARY KEY,
+            usn VARCHAR(50) NOT NULL,
+            subject_id INT NULL,
+            date DATE NOT NULL,
+            status VARCHAR(20) NOT NULL CHECK (status IN ('Present', 'Absent')),
+            recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            created_at TIMESTAMPTZ DEFAULT now(),
+            updated_at TIMESTAMPTZ DEFAULT now(),
+            CONSTRAINT fk_attendance_student FOREIGN KEY (usn) REFERENCES students(usn) ON DELETE CASCADE,
+            CONSTRAINT fk_attendance_subject FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE SET NULL
+       );
 `,
 
 		// 8. Attendance unique indexes for workflow
@@ -124,9 +99,7 @@ func (p *PostgresRepo) InitTables() error {
 	return nil
 }
 
-
-// ------------------------ Student & Subject Operations ------------------------
-
+//student 
 func (p *PostgresRepo) StudentRegister(student domain.StudentRegisterPayload) (int64, error) {
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -194,21 +167,6 @@ func (p *PostgresRepo) UpdateStudentInfo(studentID int, payload domain.StudentUp
 	return nil
 }
 
-func (p *PostgresRepo) UpdateStudentFaceEncoding(studentID int64, encoding []byte) error {
-	query := `UPDATE students SET face_encoding = $2 WHERE student_id = $1;`
-	if _, err := p.db.Exec(query, studentID, encoding); err != nil {
-		return fmt.Errorf("update face encoding: %w", err)
-	}
-	return nil
-}
-
-func (p *PostgresRepo) UpdateStudentNFC(studentID int64, uid string) error {
-	query := `UPDATE students SET nfc_uid = $2 WHERE student_id = $1;`
-	if _, err := p.db.Exec(query, studentID, uid); err != nil {
-		return fmt.Errorf("update nfc uid: %w", err)
-	}
-	return nil
-}
 
 func (p *PostgresRepo) AddSubject(subject domain.SubjectPayload) (int64, error) {
 	tx, err := p.db.Begin()
@@ -238,7 +196,7 @@ func (p *PostgresRepo) AddSubject(subject domain.SubjectPayload) (int64, error) 
 	return id, nil
 }
 
-// ------------------------ Subjects queries ------------------------
+
 //subjects of a particular department and sem
 func (p *PostgresRepo) GetSubjectsByDeptAndSem(department string, sem int) ([]domain.Subject, error) {
 	q := `SELECT s.subject_id, s.subject_code, s.subject_name, s.department, s.sem, f.faculty_name
@@ -313,7 +271,6 @@ func (p *PostgresRepo) GetSubjectsByFacultyID(facultyID int64) ([]domain.Subject
 	return list, nil
 }
 
-// ------------------------ Faculty & Admin ------------------------
 // Register Faculty
 func (p *PostgresRepo) CreateFaculty(req domain.FacultyRegisterPayload) (int64, error) {
     // 1. Hash password
@@ -439,37 +396,7 @@ func (p *PostgresRepo) CreateAdmin(username, email, password string) (int64, err
 	return id, nil
 }
 
-// CreateFacultyAPIKey creates an API key (random string) for a faculty (admin action).
-// utils.GenerateRandomKey() is assumed to exist — replace with your own generator.
-func (p *PostgresRepo) CreateFacultyAPIKey(facultyID int, expiresAt *time.Time) (string, error) {
-	apiKey, err := utils.GenerateRandomKey(48)
-	if err != nil {
-		return "", fmt.Errorf("generate key: %w", err)
-	}
-	q := `INSERT INTO faculty_api_keys (faculty_id, api_key, expires_at) VALUES ($1, $2, $3);`
-	if _, err := p.db.Exec(q, facultyID, apiKey, expiresAt); err != nil {
-		return "", fmt.Errorf("insert api key: %w", err)
-	}
-	return apiKey, nil
-}
 
-func (p *PostgresRepo) ValidateFacultyAPIKey(apiKey string) (int, error) {
-	var facultyID int
-	var expires sql.NullTime
-	q := `SELECT faculty_id, expires_at FROM faculty_api_keys WHERE api_key = $1;`
-	if err := p.db.QueryRow(q, apiKey).Scan(&facultyID, &expires); err != nil {
-		if err == sql.ErrNoRows {
-			return 0, errors.New("invalid api key")
-		}
-		return 0, fmt.Errorf("query api key: %w", err)
-	}
-	if expires.Valid && time.Now().After(expires.Time) {
-		return 0, errors.New("api key expired")
-	}
-	return facultyID, nil
-}
-
-// ------------------------ Attendance ------------------------
 func (p *PostgresRepo) MarkAttendance(req *domain.AttendancePayload) (int64, error) {
 	var attendanceID int64
 
@@ -536,7 +463,7 @@ func (p *PostgresRepo) BulkMarkAttendance(attendances []domain.AttendancePayload
     return count, nil
 }
 
-
+//here iam assigning a subject to time range of attendance marker in the attendance table 
 func (p *PostgresRepo) AssignSubjectToTimeRange(
 	facultyID int64,
 	subjectCode string,
@@ -624,7 +551,7 @@ func (p *PostgresRepo) AssignSubjectToTimeRange(
 	return updatedCount, skipped, nil
 }
 
-//working
+
 func (p *PostgresRepo) GetAttendanceByStudentAndSubject(usn string, subjectCode string) ([]domain.AttendanceWithNames, error) {
 	var subjectID int64
 	err := p.db.QueryRow(`SELECT subject_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID)
@@ -707,7 +634,7 @@ func (p *PostgresRepo) GetAttendanceBySubjectAndDate(subjectCode string, date ti
 	}
 	return list, rows.Err()
 }
-//need to write the service and handler for this
+//i need to write the service and handler for this function 
 func (p *PostgresRepo) GetAttendanceSummaryByStudent(usn string) ([]domain.SubjectSummary, error) {
 	q := `
 	SELECT subj.subject_id, subj.subject_name,
@@ -741,7 +668,6 @@ func (p *PostgresRepo) GetAttendanceSummaryByStudent(usn string) ([]domain.Subje
 
 
 func (p *PostgresRepo) GetAttendanceSummaryBySubject(subjectCode string) ([]domain.StudentSummary, error) {
-	// First resolve subject_id from subject_code
 	var subjectID int64
 	err := p.db.QueryRow(`SELECT subject_id FROM subjects WHERE subject_code = $1`, subjectCode).Scan(&subjectID)
 	if err != nil {
@@ -751,7 +677,6 @@ func (p *PostgresRepo) GetAttendanceSummaryBySubject(subjectCode string) ([]doma
 		return nil, fmt.Errorf("lookup subject_id: %w", err)
 	}
 
-	// Now run the main query using subject_id
 	q := `
 	SELECT a.usn, st.username AS student_name,
 	       COUNT(*) AS total_classes,
@@ -831,7 +756,6 @@ var subjectID int64
 		return nil, fmt.Errorf("lookup subject_id: %w", err)
 	}
 
-
 	q := `
 	SELECT a.attendance_id, a.date, a.status,
 	       a.subject_id, sub.subject_name,
@@ -856,111 +780,4 @@ var subjectID int64
 		list = append(list, h)
 	}
 	return list, nil
-}
-
-
-func (p *PostgresRepo) ExportSubjectAttendanceCSV(subjectID int64, fromDate, toDate time.Time, filePath string) error {
-    q := `
-    SELECT st.student_id, st.student_name, a.date, a.status
-    FROM attendance a
-    JOIN students st ON a.student_id = st.student_id
-    WHERE a.subject_id = $1 AND a.date BETWEEN $2 AND $3
-    ORDER BY a.date, st.student_name;
-    `
-
-    rows, err := p.db.Query(q, subjectID, fromDate, toDate)
-    if err != nil {
-        return fmt.Errorf("export query: %w", err)
-    }
-    defer rows.Close()
-
-    f, err := os.Create(filePath)
-    if err != nil {
-        return fmt.Errorf("create file: %w", err)
-    }
-    defer f.Close()
-
-    writer := csv.NewWriter(f)
-    defer writer.Flush()
-
-    // header
-    writer.Write([]string{"Student ID", "Student Name", "Date", "Status"})
-
-    // rows
-    for rows.Next() {
-        var studentID int64
-        var studentName, status string
-        var date time.Time
-        if err := rows.Scan(&studentID, &studentName, &date, &status); err != nil {
-            return err
-        }
-        record := []string{
-            fmt.Sprintf("%d", studentID),
-            studentName,
-            date.Format("2006-01-02"),
-            status,
-        }
-        writer.Write(record)
-    }
-
-    return writer.Error()
-}
-
-
-func (p *PostgresRepo) DebugAttendanceRecords(classDate time.Time) error {
-    loc, _ := time.LoadLocation("Asia/Kolkata")
-    
-    startOfDay := time.Date(classDate.Year(), classDate.Month(), classDate.Day(), 
-        0, 0, 0, 0, loc)
-    endOfDay := time.Date(classDate.Year(), classDate.Month(), classDate.Day(), 
-        23, 59, 59, 0, loc)
-    
-    startUTC := startOfDay.UTC()
-    endUTC := endOfDay.UTC()
-
-    fmt.Printf("Debug: All attendance records for %s (IST: %s to %s)\n",
-        classDate.Format("2006-01-02"),
-        startOfDay.Format("2006-01-02 15:04:05"),
-        endOfDay.Format("2006-01-02 15:04:05"))
-    fmt.Printf("Corresponding UTC: %s to %s\n",
-        startUTC.Format("2006-01-02 15:04:05"),
-        endUTC.Format("2006-01-02 15:04:05"))
-
-    rows, err := p.db.Query(`
-        SELECT attendance_id, student_id, subject_id, date, status, 
-               recorded_at, recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' as recorded_ist
-        FROM attendance 
-        WHERE date = $1
-        ORDER BY recorded_at`,
-        classDate.Format("2006-01-02"),
-    )
-    if err != nil {
-        return err
-    }
-    defer rows.Close()
-
-    for rows.Next() {
-        var id, studentID int64
-        var subjectID sql.NullInt64
-        var date, status string
-        var recordedAt time.Time
-        var recordedIST time.Time
-        
-        err := rows.Scan(&id, &studentID, &subjectID, &date, &status, &recordedAt, &recordedIST)
-        if err != nil {
-            return err
-        }
-        
-        subjectStr := "NULL"
-        if subjectID.Valid {
-            subjectStr = fmt.Sprintf("%d", subjectID.Int64)
-        }
-        
-        fmt.Printf("ID: %d, Student: %d, Subject: %s, Date: %s, Status: %s, Recorded(UTC): %s, Recorded(IST): %s\n",
-            id, studentID, subjectStr, date, status, 
-            recordedAt.Format("2006-01-02 15:04:05"),
-            recordedIST.Format("2006-01-02 15:04:05"))
-    }
-    
-    return rows.Err()
 }

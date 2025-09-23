@@ -24,6 +24,15 @@ type Subject struct {
 // 	Subjects []Subject `json:"subjects"`
 // }
 
+type SubjectSummary struct {
+    SubjectID     int64   `json:"subject_id"`
+    SubjectName   string  `json:"subject_name"`
+    TotalClasses  int     `json:"total_classes"`
+    Attended      int     `json:"attended"`
+    Percentage    float64 `json:"percentage"`
+}
+
+
 
 type SubjectRepo interface {
 	AddSubject(subject SubjectPayload) (int64, error)

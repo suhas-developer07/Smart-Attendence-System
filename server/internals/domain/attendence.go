@@ -18,21 +18,6 @@ type AttendancePayload struct {
 	RecordedAt time.Time `json:"recorded_at" validate:"required"`
 }
 
-type SubjectSummary struct {
-    SubjectID     int64   `json:"subject_id"`
-    SubjectName   string  `json:"subject_name"`
-    TotalClasses  int     `json:"total_classes"`
-    Attended      int     `json:"attended"`
-    Percentage    float64 `json:"percentage"`
-}
-
-type StudentSummary struct {
-    USN         string   `json:"usn"`
-    StudentName  string  `json:"student_name"`
-    TotalClasses int     `json:"total_classes"`
-    Attended     int     `json:"attended"`
-    Percentage   float64 `json:"percentage"`
-}
 
 type ClassAttendance struct {
     USN       string    `json:"usn"`
@@ -53,14 +38,7 @@ type AttendanceWithNames struct {
     CreatedAt   time.Time `json:"created_at"`
 }
 
-type StudentHistory struct {
-    ID          int64     `json:"attendance_id"`
-    Date        time.Time `json:"date"`
-    Status      string    `json:"status"`
-    SubjectID   int64     `json:"subject_id"`
-    SubjectName string    `json:"subject_name"`
-    RecordedAt  time.Time `json:"recorded_at"`
-}
+
 
 type AttendanceRepository interface {
 	MarkAttendance(attendance *AttendancePayload) (int64, error)

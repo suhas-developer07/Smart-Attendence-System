@@ -36,11 +36,11 @@ func main() {
 
 	
 
-e := echo.New()
+    e := echo.New()
 
-// Enable CORS for all requests
-e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-    AllowOrigins: []string{"*"}, // allow all origins
+
+    e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+    AllowOrigins: []string{"*"}, 
     AllowMethods: []string{
         echo.GET,
         echo.POST,
@@ -55,12 +55,11 @@ e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
         echo.HeaderAccept,
         echo.HeaderAuthorization,
     },
-}))
+    }))
 
-cmd.SetupRoutes(e, Database)
+    cmd.SetupRoutes(e, Database)
 
-e.Logger.Fatal(e.Start(":8080"))
-
+    e.Logger.Fatal(e.Start(":8080"))
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
